@@ -88,6 +88,20 @@ final class LYSVGAAudioSchedulerTests: XCTestCase {
         XCTAssertFalse(player.isPlaying)
     }
 
+    func testFailedInitialPlayRemainsInactiveAndRetriesWithinSameCue() throws {
+        let factory = FakeAudioPlayerFactory(playResults: [false, true])
+        let scheduler = LYSVGAAudioScheduler(factory: factory)
+        try scheduler.prepare(video: video(cues: [cue()], audioData: ["sound": Data([1])]))
+        let player = try XCTUnwrap(factory.players.first)
+
+        scheduler.synchronize(frame: 2, reverse: false)
+        XCTAssertFalse(player.isPlaying)
+        scheduler.synchronize(frame: 2, reverse: false)
+
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.playCallCount, 2)
+    }
+
     func testPausePreservesPositionAndResumeContinuesActivePlayers() throws {
         let factory = FakeAudioPlayerFactory()
         let scheduler = LYSVGAAudioScheduler(factory: factory)
@@ -103,6 +117,22 @@ final class LYSVGAAudioSchedulerTests: XCTestCase {
         scheduler.resume()
         XCTAssertEqual(player.playCallCount, 2)
         XCTAssertEqual(player.currentTime, 0.75)
+    }
+
+    func testFailedResumeBecomesInactiveAndRetriesOnSynchronization() throws {
+        let factory = FakeAudioPlayerFactory(playResults: [true, false, true])
+        let scheduler = LYSVGAAudioScheduler(factory: factory)
+        try scheduler.prepare(video: video(cues: [cue()], audioData: ["sound": Data([1])]))
+        let player = try XCTUnwrap(factory.players.first)
+
+        scheduler.synchronize(frame: 2, reverse: false)
+        scheduler.pause()
+        scheduler.resume()
+        XCTAssertFalse(player.isPlaying)
+        scheduler.synchronize(frame: 2, reverse: false)
+
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.playCallCount, 3)
     }
 
     func testSeekAndLoopForceCurrentFrameResynchronization() throws {
@@ -230,17 +260,23 @@ private final class FakeAudioPlayerFactory: LYSVGAAudioPlayerFactory {
     var creationError: Error?
     var prepareSucceeds = true
     let duration: TimeInterval
+    let playResults: [Bool]
     private(set) var players: [FakeAudioPlayer] = []
 
-    init(duration: TimeInterval = 10) {
+    init(duration: TimeInterval = 10, playResults: [Bool] = []) {
         self.duration = duration
+        self.playResults = playResults
     }
 
     func makePlayer(data _: Data) throws -> any LYSVGAAudioPlaying {
         if let creationError {
             throw creationError
         }
-        let player = FakeAudioPlayer(duration: duration, prepareSucceeds: prepareSucceeds)
+        let player = FakeAudioPlayer(
+            duration: duration,
+            prepareSucceeds: prepareSucceeds,
+            playResults: playResults
+        )
         players.append(player)
         return player
     }
@@ -260,10 +296,12 @@ private final class FakeAudioPlayer: LYSVGAAudioPlaying {
     private(set) var stopCallCount = 0
 
     private let prepareSucceeds: Bool
+    private var playResults: [Bool]
 
-    init(duration: TimeInterval, prepareSucceeds: Bool) {
+    init(duration: TimeInterval, prepareSucceeds: Bool, playResults: [Bool]) {
         self.duration = duration
         self.prepareSucceeds = prepareSucceeds
+        self.playResults = playResults
     }
 
     func prepareToPlay() -> Bool {
@@ -273,8 +311,9 @@ private final class FakeAudioPlayer: LYSVGAAudioPlaying {
 
     func play() -> Bool {
         playCallCount += 1
-        isPlaying = true
-        return true
+        let result = playResults.isEmpty ? true : playResults.removeFirst()
+        isPlaying = result
+        return result
     }
 
     func pause() {

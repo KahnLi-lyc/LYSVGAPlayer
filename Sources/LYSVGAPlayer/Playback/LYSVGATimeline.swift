@@ -41,6 +41,9 @@ struct LYSVGATimeline: Sendable {
     }
 
     mutating func tick(at timestamp: TimeInterval) -> LYSVGATimelineOutput {
+        guard timestamp.isFinite else {
+            return LYSVGATimelineOutput(frame: currentFrame)
+        }
         guard isFinished == false, isPaused == false else {
             return LYSVGATimelineOutput(frame: currentFrame)
         }
@@ -73,11 +76,21 @@ struct LYSVGATimeline: Sendable {
     mutating func resume(at timestamp: TimeInterval) {
         guard isPaused else { return }
         isPaused = false
-        baselineTimestamp = timestamp
-        baselineStep = currentStep
+        if timestamp.isFinite {
+            baselineTimestamp = timestamp
+            baselineStep = currentStep
+        } else {
+            resetTimestampBaseline()
+        }
     }
 
     mutating func updatePlaybackRate(_ playbackRate: Double, at timestamp: TimeInterval) -> LYSVGATimelineOutput {
+        guard timestamp.isFinite else {
+            self.playbackRate = LYSVGAPlaybackRate.clamped(playbackRate)
+            resetTimestampBaseline()
+            return LYSVGATimelineOutput(frame: currentFrame)
+        }
+
         let output: LYSVGATimelineOutput
         if isPaused || isFinished {
             output = LYSVGATimelineOutput(frame: currentFrame)
@@ -120,9 +133,7 @@ struct LYSVGATimeline: Sendable {
         } else {
             normalized = min(1, max(0, progress))
         }
-        let range = configuration.frameRange
-        let offset = Int((normalized * Double(range.upperBound - range.lowerBound)).rounded())
-        seek(toFrame: range.lowerBound + offset)
+        seek(toFrame: frame(forProgress: normalized))
     }
 
     mutating func reset() {
@@ -192,6 +203,25 @@ struct LYSVGATimeline: Sendable {
         let traversal = currentStep / UInt(frameSpan)
         guard let totalTraversals else { return traversal }
         return min(traversal, totalTraversals - 1)
+    }
+
+    private func frame(forProgress progress: Double) -> Int {
+        let range = configuration.frameRange
+        guard progress > 0 else { return range.lowerBound }
+        guard progress < 1 else { return range.upperBound }
+
+        let distance = range.upperBound - range.lowerBound
+        let distanceAsDouble = Double(distance)
+        let scaledOffset = progress * distanceAsDouble
+        guard scaledOffset.isFinite, scaledOffset > 0 else { return range.lowerBound }
+        guard scaledOffset < distanceAsDouble else { return range.upperBound }
+
+        let roundedOffset = scaledOffset.rounded()
+        guard roundedOffset < distanceAsDouble else { return range.upperBound }
+        let maximumConvertible = Double(Int.max).nextDown
+        let offset = Int(min(roundedOffset, maximumConvertible))
+        let (frame, overflow) = range.lowerBound.addingReportingOverflow(offset)
+        return overflow ? range.upperBound : min(frame, range.upperBound)
     }
 
     private mutating func resetTimestampBaseline() {

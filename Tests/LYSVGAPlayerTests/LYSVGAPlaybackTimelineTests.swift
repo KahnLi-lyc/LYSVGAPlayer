@@ -43,6 +43,20 @@ final class LYSVGAPlaybackTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.tick(at: 102), .init(frame: 9))
     }
 
+    func testNonFiniteFirstTickNeverPollutesBaseline() throws {
+        for timestamp in [Double.nan, Double.infinity, -Double.infinity] {
+            var timeline = LYSVGATimeline(configuration: try configuration(
+                fps: 10,
+                frameCount: 10,
+                repeatMode: .forever
+            ))
+
+            XCTAssertEqual(timeline.tick(at: timestamp), .init(frame: 0))
+            XCTAssertEqual(timeline.tick(at: 100), .init(frame: 0))
+            XCTAssertEqual(timeline.tick(at: 100.1), .init(frame: 1))
+        }
+    }
+
     func testDisablingFrameSkippingAdvancesAtMostOneFramePerTick() throws {
         var timeline = LYSVGATimeline(configuration: try configuration(
             fps: 10,
@@ -88,6 +102,34 @@ final class LYSVGAPlaybackTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.tick(at: 200).frame, 2)
         timeline.resume(at: 200)
         XCTAssertEqual(timeline.tick(at: 200.5).frame, 4)
+    }
+
+    func testNonFiniteResumeClearsBaselineUntilNextFiniteTick() throws {
+        var timeline = LYSVGATimeline(configuration: try configuration(
+            fps: 10,
+            frameCount: 10,
+            repeatMode: .forever
+        ))
+
+        XCTAssertEqual(timeline.tick(at: 0).frame, 0)
+        XCTAssertEqual(timeline.pause(at: 0.1).frame, 1)
+        timeline.resume(at: .nan)
+        XCTAssertEqual(timeline.tick(at: 100), .init(frame: 1))
+        XCTAssertEqual(timeline.tick(at: 100.1), .init(frame: 2))
+    }
+
+    func testNonFiniteRateUpdateDoesNotAdvanceForeverTimelineOrStoreBaseline() throws {
+        var timeline = LYSVGATimeline(configuration: try configuration(
+            fps: 10,
+            frameCount: 10,
+            repeatMode: .forever
+        ))
+
+        XCTAssertEqual(timeline.tick(at: 0), .init(frame: 0))
+        XCTAssertEqual(timeline.updatePlaybackRate(2, at: .infinity), .init(frame: 0))
+        XCTAssertEqual(timeline.playbackRate, 2)
+        XCTAssertEqual(timeline.tick(at: 100), .init(frame: 0))
+        XCTAssertEqual(timeline.tick(at: 100.1), .init(frame: 2))
     }
 
     func testReverseRangeCountUsesAbsoluteProgressAndDoesNotRewindBeforeFinish() throws {
@@ -190,6 +232,22 @@ final class LYSVGAPlaybackTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.currentFrame, 6)
         timeline.seek(toFrame: 100)
         XCTAssertEqual(timeline.currentFrame, 6)
+    }
+
+    func testSeekProgressHandlesIntMaxFrameRangeWithoutConversionTrap() throws {
+        var timeline = LYSVGATimeline(configuration: try configuration(
+            fps: 1,
+            frameCount: Int.max,
+            repeatMode: .forever
+        ))
+
+        timeline.seek(toProgress: 0)
+        XCTAssertEqual(timeline.currentFrame, 0)
+        timeline.seek(toProgress: 0.5)
+        XCTAssertGreaterThan(timeline.currentFrame, 0)
+        XCTAssertLessThan(timeline.currentFrame, Int.max - 1)
+        timeline.seek(toProgress: 1)
+        XCTAssertEqual(timeline.currentFrame, Int.max - 1)
     }
 
     private func configuration(

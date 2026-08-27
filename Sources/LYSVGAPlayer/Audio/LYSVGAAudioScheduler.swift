@@ -107,8 +107,8 @@ final class LYSVGAAudioScheduler {
     func resume() {
         guard isPaused else { return }
         isPaused = false
-        for entry in entries where entry.isActive {
-            _ = entry.player.play()
+        for index in entries.indices where entries[index].isActive {
+            entries[index].isActive = entries[index].player.play()
         }
     }
 
@@ -144,10 +144,7 @@ final class LYSVGAAudioScheduler {
                     frame: frame,
                     duration: entries[index].player.duration
                 )
-                entries[index].isActive = true
-                if isPaused == false {
-                    _ = entries[index].player.play()
-                }
+                entries[index].isActive = isPaused || entries[index].player.play()
             } else if entries[index].isActive {
                 entries[index].player.stop()
                 entries[index].isActive = false
