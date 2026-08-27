@@ -1,0 +1,15 @@
+LYSVGAPlayer
+Copyright 2026 likahn
+
+This project is an independent Swift implementation whose SVGA format
+behavior and compatibility goals are informed by SVGAPlayer-iOS 2.5.8 and
+the upstream SVGA format project:
+
+  SVGAPlayer-iOS: https://github.com/svga/SVGAPlayer-iOS
+  SVGA-Format: https://github.com/svga/SVGA-Format
+
+Those upstream projects are distributed under the Apache License 2.0.
+
+No Objective-C generated Protobuf source from SVGAPlayer-iOS is copied into
+this repository. Any generated bindings added in future work must be produced
+for this package from the applicable format definitions.

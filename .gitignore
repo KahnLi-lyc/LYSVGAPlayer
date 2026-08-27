@@ -1,0 +1,21 @@
+# Swift Package Manager
+/.build/
+/.swiftpm/
+
+# Xcode
+/build/
+/DerivedData/
+*.xcresult
+*.xcuserstate
+**/xcuserdata/
+
+# Local test assets
+/TestAssets/Local/
+
+# Local example artifacts
+/Examples/.build/
+/Examples/**/DerivedData/
+/Examples/**/Local/
+
+# macOS
+.DS_Store
