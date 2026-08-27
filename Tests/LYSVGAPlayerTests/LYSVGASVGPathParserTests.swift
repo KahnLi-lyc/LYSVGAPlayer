@@ -52,7 +52,7 @@ final class LYSVGASVGPathParserTests: XCTestCase {
     func testEllipticalArcSupportsSweepLargeArcAndRotation() throws {
         let semicircle = try LYSVGASVGPathParser.parse("M0 0 A10 10 0 0 1 20 0 L10 0 Z")
         let semicircleBox = semicircle.boundingBoxOfPath
-        let filledPoint = CGPoint(x: 10, y: semicircleBox.midY / 2)
+        let filledPoint = CGPoint(x: semicircleBox.midX, y: semicircleBox.midY)
 
         XCTAssertEqual(semicircle.currentPoint, CGPoint(x: 0, y: 0))
         XCTAssertEqual(semicircleBox.width, 20, accuracy: 0.000_001)
@@ -65,6 +65,60 @@ final class LYSVGASVGPathParserTests: XCTestCase {
         XCTAssertEqual(rotated.currentPoint.y, 50, accuracy: 0.000_001)
         XCTAssertTrue(rotatedElements.contains { $0.type == .addCurveToPoint })
         XCTAssertGreaterThan(rotated.boundingBoxOfPath.height, 20)
+    }
+
+    func testArcLargeAndSweepFlagsSelectAllFourDirections() throws {
+        for largeArc in [false, true] {
+            for sweep in [false, true] {
+                let path = try LYSVGASVGPathParser.parse(
+                    "M0 0 A10 10 0 \(largeArc ? 1 : 0) \(sweep ? 1 : 0) 10 0"
+                )
+                let box = path.boundingBoxOfPath
+
+                XCTAssertEqual(path.currentPoint.x, 10, accuracy: 0.000_001)
+                XCTAssertEqual(path.currentPoint.y, 0, accuracy: 0.000_001)
+                XCTAssertTrue(elements(of: path).contains { $0.type == .addCurveToPoint })
+                if largeArc {
+                    XCTAssertGreaterThan(box.height, 15)
+                } else {
+                    XCTAssertLessThan(box.height, 2)
+                }
+                if sweep {
+                    XCTAssertLessThan(box.minY, -0.5)
+                } else {
+                    XCTAssertGreaterThan(box.maxY, 0.5)
+                }
+            }
+        }
+    }
+
+    func testArcZeroRadiusBecomesLineAndSameEndpointAddsNoSegment() throws {
+        let line = try LYSVGASVGPathParser.parse("M1 2 A0 10 45 1 1 5 6")
+        XCTAssertEqual(elements(of: line).map(\.type), [.moveToPoint, .addLineToPoint])
+        XCTAssertEqual(line.currentPoint, CGPoint(x: 5, y: 6))
+
+        let unchanged = try LYSVGASVGPathParser.parse("M1 2 A10 20 45 1 1 1 2")
+        XCTAssertEqual(elements(of: unchanged).map(\.type), [.moveToPoint])
+        XCTAssertEqual(unchanged.currentPoint, CGPoint(x: 1, y: 2))
+    }
+
+    func testRejectsNonFiniteGeneratedGeometry() {
+        assertInvalidPath("M1e308 0 l1e308 0")
+        assertInvalidPath("M1e308 0 C0 0 -1e308 0 1e308 0 S0 0 0 0")
+        assertInvalidPath("M0 0 A1e308 1e308 45 0 1 1 1")
+    }
+
+    func testCommaWspRejectsLeadingConsecutiveAndTrailingCommas() {
+        assertInvalidPath(",M0 0")
+        assertInvalidPath("M,0 0")
+        assertInvalidPath("M0,,0")
+        assertInvalidPath("M0 0,")
+    }
+
+    func testCommaWspPreservesSingleCommaWhitespaceAndNegativeAdjacency() throws {
+        XCTAssertNoThrow(try LYSVGASVGPathParser.parse("M0,0"))
+        XCTAssertNoThrow(try LYSVGASVGPathParser.parse("M0 0"))
+        XCTAssertNoThrow(try LYSVGASVGPathParser.parse("M0-1"))
     }
 
     func testCloseResetsCurrentPointForFollowingRelativeCommand() throws {
@@ -85,11 +139,7 @@ final class LYSVGASVGPathParserTests: XCTestCase {
         ]
 
         for source in invalidPaths {
-            XCTAssertThrowsError(try LYSVGASVGPathParser.parse(source), "Expected failure for: \(source)") { error in
-                guard case .invalidPath = error as? LYSVGAError else {
-                    return XCTFail("Expected invalidPath for \(source), got \(error)")
-                }
-            }
+            assertInvalidPath(source)
         }
     }
 
@@ -121,5 +171,22 @@ final class LYSVGASVGPathParserTests: XCTestCase {
             ))
         }
         return result
+    }
+
+    private func assertInvalidPath(
+        _ source: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(
+            try LYSVGASVGPathParser.parse(source),
+            "Expected failure for: \(source)",
+            file: file,
+            line: line
+        ) { error in
+            guard case .invalidPath = error as? LYSVGAError else {
+                return XCTFail("Expected invalidPath for \(source), got \(error)", file: file, line: line)
+            }
+        }
     }
 }

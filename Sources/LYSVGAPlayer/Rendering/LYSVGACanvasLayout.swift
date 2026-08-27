@@ -2,7 +2,7 @@ import UIKit
 
 enum LYSVGACanvasLayout {
     static func frame(videoSize: CGSize, in bounds: CGRect, contentMode: UIView.ContentMode) -> CGRect {
-        guard isValid(videoSize), isValid(bounds.size) else {
+        guard isValid(videoSize), isValid(bounds) else {
             return .zero
         }
 
@@ -50,6 +50,10 @@ enum LYSVGACanvasLayout {
 
     private static func isValid(_ size: CGSize) -> Bool {
         size.width.isFinite && size.height.isFinite && size.width > 0 && size.height > 0
+    }
+
+    private static func isValid(_ rect: CGRect) -> Bool {
+        rect.origin.x.isFinite && rect.origin.y.isFinite && isValid(rect.size)
     }
 
     private static func scaledFrame(videoSize: CGSize, in bounds: CGRect, scale: CGFloat) -> CGRect {

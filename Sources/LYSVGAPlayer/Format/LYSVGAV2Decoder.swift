@@ -145,6 +145,10 @@ enum LYSVGAV2Decoder {
     private static func resourceKey(_ resourceKey: String, matchesAudioKey audioKey: String) -> Bool {
         resourceKey == audioKey
             || (resourceKey as NSString).lastPathComponent == (audioKey as NSString).lastPathComponent
-            || LYSVGAResourceKey.canonicalize(resourceKey) == LYSVGAResourceKey.canonicalize(audioKey)
+            || deletingPathExtension(resourceKey) == deletingPathExtension(audioKey)
+    }
+
+    private static func deletingPathExtension(_ value: String) -> String {
+        (value as NSString).deletingPathExtension
     }
 }

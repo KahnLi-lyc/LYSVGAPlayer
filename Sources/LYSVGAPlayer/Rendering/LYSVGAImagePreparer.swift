@@ -8,13 +8,25 @@ struct LYSVGAPreparedImage: @unchecked Sendable {
 }
 
 enum LYSVGAImagePreparer {
+    static var decodeOptions: CFDictionary {
+        [
+            kCGImageSourceShouldCache: true,
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary
+    }
+
     @concurrent
-    static func prepare(_ video: LYSVGAVideo) async throws -> [String: LYSVGAPreparedImage] {
+    static func prepare(
+        _ video: LYSVGAVideo,
+        checkpoint: (@Sendable () async -> Void)? = nil
+    ) async throws -> [String: LYSVGAPreparedImage] {
         try Task.checkCancellation()
         var result: [String: LYSVGAPreparedImage] = [:]
         result.reserveCapacity(video.images.count)
 
         for (sourceKey, data) in video.images {
+            try Task.checkCancellation()
+            await checkpoint?()
             try Task.checkCancellation()
             let key = LYSVGAResourceKey.canonicalize(sourceKey)
             guard let source = CGImageSourceCreateWithData(
@@ -23,10 +35,7 @@ enum LYSVGAImagePreparer {
             ), let image = CGImageSourceCreateImageAtIndex(
                 source,
                 0,
-                [
-                    kCGImageSourceShouldCache: true,
-                    kCGImageSourceShouldCacheImmediately: true,
-                ] as CFDictionary
+                decodeOptions
             ) else {
                 throw LYSVGAError.imagePreparationFailure(key)
             }

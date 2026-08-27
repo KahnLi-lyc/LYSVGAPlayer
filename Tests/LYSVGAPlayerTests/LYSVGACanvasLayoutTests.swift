@@ -74,4 +74,27 @@ final class LYSVGACanvasLayoutTests: XCTestCase {
             )
         }
     }
+
+    func testAllContentModesRejectNonFiniteBoundsOrigins() {
+        let videoSize = CGSize(width: 100, height: 100)
+        let invalidBounds = [
+            CGRect(x: CGFloat.infinity, y: 0, width: 100, height: 100),
+            CGRect(x: 0, y: CGFloat.nan, width: 100, height: 100),
+        ]
+        let contentModes: [UIView.ContentMode] = [
+            .scaleToFill, .scaleAspectFit, .scaleAspectFill, .redraw,
+            .center, .top, .bottom, .left, .right,
+            .topLeft, .topRight, .bottomLeft, .bottomRight,
+        ]
+
+        for bounds in invalidBounds {
+            for contentMode in contentModes {
+                XCTAssertEqual(
+                    LYSVGACanvasLayout.frame(videoSize: videoSize, in: bounds, contentMode: contentMode),
+                    .zero,
+                    "Expected invalid origin to be rejected for mode \(contentMode.rawValue)"
+                )
+            }
+        }
+    }
 }

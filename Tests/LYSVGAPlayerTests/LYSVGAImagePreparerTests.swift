@@ -33,17 +33,25 @@ final class LYSVGAImagePreparerTests: XCTestCase {
         XCTAssertTrue(images.isEmpty)
     }
 
+    func testDecodeOptionsEnableImmediateImageCaching() {
+        let options = LYSVGAImagePreparer.decodeOptions as NSDictionary
+
+        XCTAssertEqual(options[kCGImageSourceShouldCache as String] as? Bool, true)
+        XCTAssertEqual(options[kCGImageSourceShouldCacheImmediately as String] as? Bool, true)
+    }
+
     func testPreparationRespondsToTaskCancellation() async throws {
-        let sourceImages = Dictionary(uniqueKeysWithValues: (0 ..< 100).map { ("image-\($0).png", validPNG) })
-        let video = try makeVideo(images: sourceImages)
+        let gate = ImagePreparationGate()
+        let video = try makeVideo(images: ["pixel.png": validPNG])
         let task = Task {
-            while Task.isCancelled == false {
-                await Task.yield()
+            try await LYSVGAImagePreparer.prepare(video) {
+                await gate.waitAtCheckpoint()
             }
-            return try await LYSVGAImagePreparer.prepare(video)
         }
 
+        await gate.waitUntilEntered()
         task.cancel()
+        await gate.release()
         do {
             _ = try await task.value
             XCTFail("Expected cancellation.")
@@ -93,5 +101,34 @@ final class LYSVGAImagePreparerTests: XCTestCase {
             sprites: [],
             audios: []
         )
+    }
+}
+
+private actor ImagePreparationGate {
+    private var didEnter = false
+    private var enteredContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func waitAtCheckpoint() async {
+        didEnter = true
+        enteredContinuation?.resume()
+        enteredContinuation = nil
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard didEnter == false else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            enteredContinuation = continuation
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }
