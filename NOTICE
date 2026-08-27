@@ -1,15 +1,20 @@
 LYSVGAPlayer
 Copyright 2026 likahn
 
-This project is an independent Swift implementation whose SVGA format
-behavior and compatibility goals are informed by SVGAPlayer-iOS 2.5.8 and
-the upstream SVGA format project:
+This repository's source code is licensed under the Apache License 2.0, as
+provided in the LICENSE file.
 
-  SVGAPlayer-iOS: https://github.com/svga/SVGAPlayer-iOS
-  SVGA-Format: https://github.com/svga/SVGA-Format
+SVGA format behavior and compatibility goals are informed by this pinned
+implementation reference:
 
-Those upstream projects are distributed under the Apache License 2.0.
+  SVGAPlayer-iOS 2.5.8
+  Repository: https://github.com/Rogue24/SVGAPlayer-iOS
+  Tag: https://github.com/Rogue24/SVGAPlayer-iOS/tree/2.5.8
+  Commit: https://github.com/Rogue24/SVGAPlayer-iOS/commit/98cb1825cfbea8506e979d28d0a9269dcf12c20a
+  License at that commit:
+  https://raw.githubusercontent.com/Rogue24/SVGAPlayer-iOS/98cb1825cfbea8506e979d28d0a9269dcf12c20a/LICENSE
 
-No Objective-C generated Protobuf source from SVGAPlayer-iOS is copied into
-this repository. Any generated bindings added in future work must be produced
-for this package from the applicable format definitions.
+This attribution identifies a behavioral reference; it does not state that
+source or generated Objective-C code from that reference is included here.
+Any third-party or generated material incorporated into this repository must
+retain the notices and satisfy the license terms applicable to that material.
