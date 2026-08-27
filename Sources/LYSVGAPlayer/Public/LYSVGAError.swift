@@ -18,6 +18,8 @@ public enum LYSVGAError: Error, Equatable, Sendable {
     case invalidModel(String)
     case imagePreparationFailure(String)
     case invalidPath(String)
+    case invalidPlaybackConfiguration(String)
+    case audioPreparationFailure(audioKey: String, reason: String)
 }
 
 extension LYSVGAError: LocalizedError {
@@ -40,6 +42,9 @@ extension LYSVGAError: LocalizedError {
         case let .invalidModel(reason): "The SVGA model is invalid: \(reason)"
         case let .imagePreparationFailure(key): "Unable to prepare the SVGA image: \(key)"
         case let .invalidPath(reason): "The SVG path is invalid: \(reason)"
+        case let .invalidPlaybackConfiguration(reason): "The SVGA playback configuration is invalid: \(reason)"
+        case let .audioPreparationFailure(audioKey, reason):
+            "Unable to prepare SVGA audio '\(audioKey)': \(reason)"
         }
     }
 }
