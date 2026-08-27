@@ -3,7 +3,7 @@
 LYSVGAPlayer 计划提供一个面向现代 iOS 的原生 Swift SVGA 播放器。核心渲染基于 UIKit 与 Core Animation，SwiftUI 作为适配层提供。
 
 > [!WARNING]
-> 当前仓库仅完成 Swift Package、目录、依赖与并发编译规则的脚手架。播放器、格式解析、渲染、音频、缓存、导出等能力尚未实现，现阶段不能用于播放 SVGA 文件。
+> 当前仓库已实现 SVGA V1/V2 格式解析、异步资源加载与内存/磁盘缓存，但渲染、播放时钟、音频调度和导出仍未实现，现阶段仍不能播放 SVGA 文件。
 
 ## 环境要求
 
@@ -19,14 +19,17 @@ Package 使用 Swift tools 6.0 与 Swift 6 语言模式，采用 Swift 6 默认�
 
 ## Package 状态
 
-当前版本标识为 `0.1.0`，公开 Product、Target 与 Module 均命名为 `LYSVGAPlayer`。本阶段只公开 `LYSVGAVersion.identifier`，用于验证集成与模块导入。
+当前版本标识为 `0.1.0`，公开 Product、Target 与 Module 均命名为 `LYSVGAPlayer`。公开 API 现包括不可变视频模型、`LYSVGASource`、`LYSVGACachePolicy`、`LYSVGAError` 与 `LYSVGAAssetLoader`。
 
-以下逻辑模块已规划目录，但尚未提供实现：
+当前已实现：
 
 - `Public`：公开 API 与版本信息
-- `Format/Protobuf`：V1 ZIP/JSON、V2 zlib/Protobuf 格式识别与解析
 - `Model`：不可变、可发送的统一视频模型
-- `Loading`：资源加载、请求合并与缓存策略
+- `Format/Protobuf`：V1 ZIP/JSON、V2 zlib/Protobuf 格式识别、解压和统一模型映射
+- `Loading`：Data、本地文件和远程 URL 加载、请求合并，以及受限内存 LRU/原始数据磁盘缓存
+
+以下模块仍处于规划阶段：
+
 - `Rendering`：Core Animation 图层树与逐帧渲染
 - `Playback`：播放时钟、循环、范围、倍速与结束行为
 - `Audio`：音频资源与时间线调度
@@ -68,7 +71,7 @@ dependencies: [
 )
 ```
 
-当前尚未发布可用播放器版本；上述代码仅说明计划中的 SPM 集成形式。
+当前尚未发布可用播放器版本；上述代码仅说明 SPM 集成形式。格式读取可通过 `LYSVGAAssetLoader.load(_:cachePolicy:)` 使用，但返回模型暂时不能直接播放。
 
 ## 文档
 

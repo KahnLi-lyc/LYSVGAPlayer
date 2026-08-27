@@ -6,7 +6,7 @@ LYSVGAPlayer 采用“统一数据模型 + 异步资源管线 + 主线程渲染�
 
 本仓库是独立 Swift Package，不依赖、不读取、不复制、不修改任何业务应用的源码、资源或构建配置。
 
-当前阶段仅建立 Package 与架构目录。以下类型和流程均为后续任务的设计边界，不代表已经实现。
+当前阶段已实现统一数据模型、V1/V2 解码、异步资源加载、请求合并和内存/磁盘缓存。渲染、播放、音频和导出仍是后续设计边界，不代表已经实现。
 
 ## 总体架构
 
@@ -50,11 +50,11 @@ Source
 
 | 目录 | 职责 | 明确边界 |
 | --- | --- | --- |
-| `Public` | 公开类型、协议与版本信息 | 不暴露内部解析器、缓存节点或渲染图层 |
-| `Format` | 文件识别、V1/V2 解码、数据校验与错误映射 | 不持有 UI、播放状态或缓存策略 |
-| `Format/Protobuf` | Protobuf 生成代码及到统一模型的映射 | 生成对象不跨并发边界 |
-| `Model` | Video、Sprite、Frame、Shape、Transform、Matte、Audio 值模型 | 类型不可变并满足 `Sendable` |
-| `Loading` | URL、本地文件和 `Data` 加载，请求合并与缓存 | 不创建 UIKit 或 Core Animation 对象 |
+| `Public` | 已实现公开类型、错误、源与加载器 API | 不暴露内部解析器、缓存节点或渲染图层 |
+| `Format` | 已实现文件识别、V1/V2 解码、数据校验与错误映射 | 不持有 UI、播放状态或缓存策略 |
+| `Format/Protobuf` | 已提交固定 schema/Swift 生成代码并映射统一模型 | 生成对象不跨并发边界 |
+| `Model` | 已实现 Video、Sprite、Frame、Shape、Transform、Matte、Audio 值模型 | 类型不可变并满足 `Sendable` |
+| `Loading` | 已实现 URL、本地文件和 `Data` 加载，请求合并与缓存 | 不创建 UIKit 或 Core Animation 对象 |
 | `Rendering` | 图层工厂、位图、矢量、遮罩、动态内容与画布布局 | 由 `MainActor` 隔离，不负责网络和解析 |
 | `Playback` | DisplayLink 时钟、区间、循环、倒放、倍速与结束行为 | 只推进逻辑时间线，不解析资源 |
 | `Audio` | 音频资源创建、区间调度、暂停恢复、循环与静音 | 与播放时钟同步，倒放不启动内嵌音频 |
@@ -112,4 +112,4 @@ LYSVGARootLayer
 - `LYSVGAFrameExporter`
 - 动态图片、远程图片、富文本、隐藏和 Drawing Handler 接口
 
-所有公开类型使用 `LYSVGA` 前缀，以便与 Objective-C SVGAPlayer 共存。每项 API 仅在对应能力实现和测试完成后加入源码；架构文档中的名称不构成当前可用性承诺。
+所有公开类型使用 `LYSVGA` 前缀，以便与 Objective-C SVGAPlayer 共存。当前可用边界以源码和 README 的 Package 状态为准；渲染、播放、音频及导出名称仍不构成可用性承诺。

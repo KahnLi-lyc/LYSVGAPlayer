@@ -33,7 +33,10 @@ let package = Package(
         ),
         .testTarget(
             name: "LYSVGAPlayerTests",
-            dependencies: ["LYSVGAPlayer"]
+            dependencies: ["LYSVGAPlayer"],
+            resources: [
+                .copy("Fixtures"),
+            ]
         ),
     ]
 )
