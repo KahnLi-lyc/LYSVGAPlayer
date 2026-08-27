@@ -204,6 +204,59 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.currentFrame, 6)
     }
 
+    func testSeekWithoutAndPlayFromReadyPausesWithoutStartingAudioAndResumeContinuesTargetCue() async throws {
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            }
+        )
+        try await view.setVideo(try makePlayerVideoWithAudio(fps: 10, frameCount: 10))
+        clock.timestamp = 100
+
+        view.seek(toFrame: 5)
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 5)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.currentTime, 0.5, accuracy: 0.000_001)
+
+        view.resume()
+        view.tickForTesting(at: 100.1)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertEqual(view.currentFrame, 6)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+    }
+
+    func testSeekWithoutAndPlayFromFinishedPausesAndResumeContinuesFromProgressFrame() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 10))
+        try view.play()
+        view.tickForTesting(at: 10)
+        view.tickForTesting(at: 11)
+        XCTAssertEqual(view.playbackState, .finished)
+
+        clock.timestamp = 20
+        view.seek(toProgress: 0.5)
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 5)
+        XCTAssertFalse(clock.isRunning)
+
+        view.resume()
+        view.tickForTesting(at: 20.1)
+        XCTAssertEqual(view.currentFrame, 6)
+    }
+
     func testExplicitPlayWhilePausedRestartsAudioScheduler() async throws {
         let audioFactory = PlayerViewAudioFactory()
         let view = LYSVGAPlayerView(candidateFactory: {
@@ -343,6 +396,27 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.playbackState, .paused)
 
         center.post(name: UIApplication.willEnterForegroundNotification, object: nil)
+        XCTAssertEqual(view.playbackState, .playing)
+    }
+
+    func testApplicationAndWindowInterruptionsResumeOnlyAfterReattachment() async throws {
+        let center = NotificationCenter()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let container = UIView(frame: window.bounds)
+        let view = LYSVGAPlayerView(notificationCenter: center)
+        window.addSubview(container)
+        container.addSubview(view)
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 4))
+        try view.play()
+
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertEqual(view.playbackState, .paused)
+        view.removeFromSuperview()
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+
+        XCTAssertEqual(view.playbackState, .paused)
+
+        container.addSubview(view)
         XCTAssertEqual(view.playbackState, .playing)
     }
 

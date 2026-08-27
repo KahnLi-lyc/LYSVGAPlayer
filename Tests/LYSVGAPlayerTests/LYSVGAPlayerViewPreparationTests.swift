@@ -43,6 +43,31 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
         XCTAssertTrue(view.rendererRootLayerForTesting === installedLayer)
     }
 
+    func testSeekDuringLoadingDoesNotReplaceLoadingStateOrInstalledFrame() async throws {
+        let loadingStarted = expectation(description: "loading preparation started")
+        var resumeLoading: CheckedContinuation<Void, Never>?
+        let view = LYSVGAPlayerView(preparationHook: { video in
+            guard video.version == "loading" else { return }
+            loadingStarted.fulfill()
+            await withCheckedContinuation { resumeLoading = $0 }
+        })
+        try await view.setVideo(try preparationVideo(version: "installed"))
+        view.seek(toFrame: 1)
+        let loadingTask = Task { try await view.setVideo(try preparationVideo(version: "loading")) }
+        await fulfillment(of: [loadingStarted])
+        XCTAssertEqual(view.playbackState, .loading)
+
+        view.seek(toFrame: 2)
+        view.seek(toProgress: 1)
+
+        XCTAssertEqual(view.playbackState, .loading)
+        XCTAssertEqual(view.currentFrame, 1)
+
+        resumeLoading?.resume()
+        try await loadingTask.value
+        XCTAssertEqual(view.playbackState, .ready)
+    }
+
     func testAudioPreparationFailureKeepsPreviousInstallationAtomicAndEntersFailed() async throws {
         let failingFactory = FailingPreparationAudioFactory()
         var candidateIndex = 0

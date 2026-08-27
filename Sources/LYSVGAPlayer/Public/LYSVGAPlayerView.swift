@@ -136,7 +136,8 @@ public final class LYSVGAPlayerView: UIView {
     public override func didMoveToWindow() {
         super.didMoveToWindow()
         if window == nil {
-            guard playbackState == .playing || interruptionReasons.contains(.windowDetached) else { return }
+            guard playbackState == .playing || shouldResumeAfterInterruption ||
+                interruptionReasons.contains(.windowDetached) else { return }
             beginInterruption(.windowDetached)
         } else {
             endInterruption(.windowDetached)
@@ -198,10 +199,11 @@ public final class LYSVGAPlayerView: UIView {
     public func resume() {
         guard playbackState == .paused, interruptionReasons.isEmpty else { return }
         guard var timeline else { return }
-        timeline.resume(at: clockTimestamp)
+        let clock = ensureClock()
+        timeline.resume(at: clock.timestamp)
         self.timeline = timeline
         audioScheduler?.resume()
-        ensureClock().start()
+        clock.start()
         shouldResumeAfterInterruption = false
         changeState(.playing)
     }
@@ -237,17 +239,16 @@ public final class LYSVGAPlayerView: UIView {
     }
 
     public func seek(toFrame frame: Int, andPlay: Bool = false) {
-        guard let video else { return }
+        guard playbackState != .loading, let video else { return }
         let range = playbackRange ?? 0...(video.frameCount - 1)
         let target = min(range.upperBound, max(range.lowerBound, frame))
-        let wasPlaying = playbackState == .playing
         ensureTimelineForSeeking(video: video, range: range)
         timeline?.seek(toFrame: target)
         display(frame: target, forceDelegate: true)
 
         if andPlay {
             startPlaybackAfterSeek(at: target)
-        } else if wasPlaying {
+        } else {
             if var timeline {
                 _ = timeline.pause(at: clockTimestamp)
                 self.timeline = timeline
@@ -257,11 +258,6 @@ public final class LYSVGAPlayerView: UIView {
             audioScheduler?.seek(to: target, reverse: isReversePlayback)
             shouldResumeAfterInterruption = false
             changeState(.paused)
-        } else if playbackState == .paused {
-            shouldResumeAfterInterruption = false
-            audioScheduler?.seek(to: target, reverse: isReversePlayback)
-        } else {
-            audioScheduler?.stop()
         }
     }
 
