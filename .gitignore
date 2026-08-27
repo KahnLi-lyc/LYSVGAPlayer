@@ -1,6 +1,7 @@
 # Swift Package Manager
 /.build/
 /.swiftpm/
+/Package.resolved
 
 # Xcode
 /build/
@@ -11,6 +12,7 @@
 
 # Local test assets
 /TestAssets/Local/
+/svgaResources/
 
 # Local example artifacts
 /Examples/.build/

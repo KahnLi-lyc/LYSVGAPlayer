@@ -8,11 +8,11 @@ LYSVGAPlayer 计划提供一个面向现代 iOS 的原生 Swift SVGA 播放器�
 ## 环境要求
 
 - iOS 16.0 或更高版本
-- Swift 6.0 或更高版本
-- Xcode 16.0 或更高版本
+- Swift 6.2 或更高版本
+- Xcode 26.0 或更高版本
 - Swift Package Manager
 
-Package 使用 Swift tools 6.0 与 Swift 6 语言模式，采用 Swift 6 默认的完整严格并发检查。当前依赖包括：
+Package 使用 Swift tools 6.2 与明确的 Swift 6 语言模式，采用 Swift 6 默认的完整严格并发检查。当前依赖包括：
 
 - [SwiftProtobuf](https://github.com/apple/swift-protobuf)，最低 1.27.0
 - [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)，最低 0.9.19
@@ -45,7 +45,7 @@ Package 使用 Swift tools 6.0 与 Swift 6 语言模式，采用 Swift 6 默认�
 - 解压与解析通过结构化并发执行，只跨边界传递 `Sendable` 数据。
 - UIKit、`CALayer`、播放时钟、音频播放器和 Delegate 固定在 `MainActor`。
 - Protobuf 生成对象不跨并发边界，解析后立即映射为包内值类型。
-- 不使用 Swift 6.2 及更高版本专属语法，保持 Swift 6.0 工具链兼容基线。
+- 工具链基线为 Swift 6.2 / Xcode 26+；SwiftUI 适配层仍保持 iOS 16 运行时边界。
 
 ## Swift Package Manager 集成
 

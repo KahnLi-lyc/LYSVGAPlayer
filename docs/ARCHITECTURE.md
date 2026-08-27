@@ -2,7 +2,7 @@
 
 ## 目标与边界
 
-LYSVGAPlayer 采用“统一数据模型 + 异步资源管线 + 主线程渲染内核”的架构。核心使用 UIKit 与 Core Animation，最低工具链为 Swift 6.0 与 Xcode 16，最低支持 iOS 16；SwiftUI 只作为适配层，不改变播放内核的生命周期与线程约束。
+LYSVGAPlayer 采用“统一数据模型 + 异步资源管线 + 主线程渲染内核”的架构。核心使用 UIKit 与 Core Animation，最低工具链为 Swift 6.2 与 Xcode 26，最低支持 iOS 16；SwiftUI 只作为适配层，不改变播放内核的生命周期与线程约束。
 
 本仓库是独立 Swift Package，不依赖、不读取、不复制、不修改任何业务应用的源码、资源或构建配置。
 
@@ -80,7 +80,7 @@ flowchart TB
 - 解压、JSON/Protobuf 解析采用结构化异步任务，并响应取消。
 - 并发边界只传递 `Sendable` 输入和不可变结果；Protobuf 生成对象在解析任务内立即转换。
 - 需要 `@unchecked Sendable` 的系统对象必须单独封装并记录线程安全依据，不得成为公开 API。
-- Package 使用 Swift tools 6.0 与 Swift 6 语言模式，采用默认的完整严格并发检查；不依赖 Swift 6.2 及更高版本专属语法。
+- Package 使用 Swift tools 6.2 与明确的 Swift 6 语言模式，采用默认的完整严格并发检查；工具链升级不改变 SwiftUI 的 iOS 16 兼容边界。
 
 ## 渲染层级
 

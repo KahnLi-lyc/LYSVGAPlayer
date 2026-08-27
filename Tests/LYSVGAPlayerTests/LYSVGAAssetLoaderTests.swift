@@ -138,6 +138,56 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         XCTAssertEqual(URLProtocolStub.startCount, 2)
     }
 
+    func testDiskCacheDecodeCancellationPreservesCacheAndDoesNotFallBackToReader() async throws {
+        for cancellation in CacheDecodeCancellation.allCases {
+            let directory = TestSupport.temporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let configuration = cacheConfiguration(directory: directory)
+            let source = LYSVGASource.data(Data([0x01]), cacheKey: "cached-\(cancellation)")
+            let cachedData = Data([0x01])
+            let fallbackData = Data([0x02])
+            let expectedVideo = try TestSupport.video(version: "cached")
+            let seeder = LYSVGAAssetLoader(
+                session: .shared,
+                cacheConfiguration: configuration,
+                reader: { _, _ in cachedData },
+                decoder: { _ in expectedVideo }
+            )
+            _ = try await seeder.load(source, cachePolicy: .automatic)
+
+            let probe = CacheFallbackProbe(fallbackData: fallbackData)
+            let cancellingLoader = LYSVGAAssetLoader(
+                session: .shared,
+                cacheConfiguration: configuration,
+                reader: { _, _ in probe.read() },
+                decoder: { data in
+                    if data == cachedData {
+                        throw cancellation.error
+                    }
+                    return expectedVideo
+                }
+            )
+            do {
+                _ = try await cancellingLoader.load(source, cachePolicy: .automatic)
+                XCTFail("Expected \(cancellation) to cancel cached decoding.")
+            } catch {
+                XCTAssertEqual(error as? LYSVGAError, .cancelled)
+            }
+            XCTAssertEqual(probe.readCount, 0)
+
+            let verificationProbe = CacheFallbackProbe(fallbackData: fallbackData)
+            let verificationLoader = LYSVGAAssetLoader(
+                session: .shared,
+                cacheConfiguration: configuration,
+                reader: { _, _ in verificationProbe.read() },
+                decoder: { _ in expectedVideo }
+            )
+            let verifiedVideo = try await verificationLoader.load(source, cachePolicy: .automatic)
+            XCTAssertEqual(verifiedVideo, expectedVideo)
+            XCTAssertEqual(verificationProbe.readCount, 0)
+        }
+    }
+
     func testCachePolicySemanticsAndFailuresAreNotCached() async throws {
         URLProtocolStub.configure(statusCode: 500, data: Data(), delay: 0)
         let directory = TestSupport.temporaryDirectory()
@@ -191,6 +241,41 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
             diskSizeLimit: 4 * 1_024 * 1_024,
             timeToLive: 60
         )
+    }
+}
+
+private enum CacheDecodeCancellation: String, CaseIterable, Sendable {
+    case task
+    case url
+    case library
+
+    var error: any Error {
+        switch self {
+        case .task: CancellationError()
+        case .url: URLError(.cancelled)
+        case .library: LYSVGAError.cancelled
+        }
+    }
+}
+
+private final class CacheFallbackProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private let fallbackData: Data
+    private var reads = 0
+
+    init(fallbackData: Data) {
+        self.fallbackData = fallbackData
+    }
+
+    var readCount: Int {
+        lock.withLock { reads }
+    }
+
+    func read() -> Data {
+        lock.withLock {
+            reads += 1
+            return fallbackData
+        }
     }
 }
 

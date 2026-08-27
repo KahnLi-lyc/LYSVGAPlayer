@@ -61,6 +61,12 @@ public actor LYSVGAAssetLoader {
                         let video = try await decodeOffActor(data)
                         await cache.store(video: video, forKey: key)
                         return video
+                    } catch let error as CancellationError {
+                        throw error
+                    } catch let error as URLError where error.code == .cancelled {
+                        throw error
+                    } catch let error as LYSVGAError where error == .cancelled {
+                        throw error
                     } catch {
                         await cache.removeDiskData(forKey: key)
                     }
