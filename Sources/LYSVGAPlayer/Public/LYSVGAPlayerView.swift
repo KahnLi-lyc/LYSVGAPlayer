@@ -182,23 +182,32 @@ public final class LYSVGAPlayerView: UIView {
     }
 
     public func play(range: ClosedRange<Int>? = nil, reverse: Bool = false) throws {
+        guard video != nil else {
+            throw LYSVGAError.invalidPlaybackConfiguration("A video must be installed before playback.")
+        }
         let revision = beginMutation()
         try play(range: range, reverse: reverse, revision: revision)
     }
 
     public func pause() {
+        if timeline?.isFinished == true {
+            shouldResumeAfterInterruption = false
+            return
+        }
+        guard playbackState == .playing || shouldResumeAfterInterruption else { return }
         let revision = beginMutation()
         pause(cancelAutomaticResume: true, revision: revision)
     }
 
     public func resume() {
+        guard playbackState == .paused, interruptionReasons.isEmpty, timeline != nil else { return }
         let revision = beginMutation()
         resume(revision: revision)
     }
 
     public func stop() {
-        let revision = beginMutation()
         guard video != nil else { return }
+        let revision = beginMutation()
         shouldResumeAfterInterruption = false
         clock?.pause()
         audioScheduler?.stop()
@@ -523,13 +532,13 @@ private extension LYSVGAPlayerView {
     func consume(_ output: LYSVGATimelineOutput, revision: UInt) {
         guard isCurrent(revision: revision), timeline != nil else { return }
         let frameChanged = currentFrame != output.frame
-        if frameChanged || output.didFinish {
-            guard display(frame: output.frame, forceDelegate: true, revision: revision) else { return }
-        }
         if output.completedLoops > 0 {
             audioScheduler?.loop(at: output.frame, reverse: isReversePlayback)
         } else if frameChanged {
             audioScheduler?.synchronize(frame: output.frame, reverse: isReversePlayback)
+        }
+        if frameChanged || output.didFinish {
+            guard display(frame: output.frame, forceDelegate: true, revision: revision) else { return }
         }
         if output.completedLoops > 0 {
             delegate?.playerView(self, didCrossLoops: output.completedLoops)

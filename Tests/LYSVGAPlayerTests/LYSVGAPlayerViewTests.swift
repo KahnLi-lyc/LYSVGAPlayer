@@ -162,6 +162,72 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.currentFrame, 2)
     }
 
+    func testPauseFromNewCueFrameCallbackUsesAudioStateForDisplayedFrame() async throws {
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            }
+        )
+        try await view.setVideo(try makePlayerVideoWithAudio(
+            fps: 10,
+            frameCount: 6,
+            audioStartFrame: 2,
+            audioStartTime: 500
+        ))
+        try view.play()
+        view.tickForTesting(at: 10)
+        let delegate = PlayerViewDelegateSpy()
+        delegate.onFrame = { playerView, frame, _ in
+            guard frame == 2 else { return }
+            delegate.onFrame = nil
+            playerView.pause()
+        }
+        view.delegate = delegate
+
+        view.tickForTesting(at: 10.2)
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 2)
+        XCTAssertEqual(audioFactory.player.currentTime, 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+    }
+
+    func testPauseFromFinalFrameCallbackDoesNotCancelNaturalFinish() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 4))
+        try view.play()
+        view.tickForTesting(at: 10)
+        let delegate = PlayerViewDelegateSpy()
+        delegate.onFrame = { playerView, frame, _ in
+            guard frame == 3 else { return }
+            delegate.onFrame = nil
+            playerView.pause()
+        }
+        view.delegate = delegate
+
+        view.tickForTesting(at: 11)
+
+        XCTAssertEqual(view.playbackState, .finished)
+        XCTAssertEqual(view.currentFrame, 3)
+        XCTAssertEqual(delegate.finishCount, 1)
+        XCTAssertFalse(clock.isRunning)
+
+        view.resume()
+        view.tickForTesting(at: 20)
+
+        XCTAssertEqual(view.playbackState, .finished)
+        XCTAssertEqual(delegate.finishCount, 1)
+        XCTAssertFalse(clock.isRunning)
+    }
+
     func testClearFromFinishingFrameCallbackPreventsStaleLoopAndFinishCallbacks() async throws {
         let view = LYSVGAPlayerView()
         view.repeatMode = .count(2)
@@ -797,7 +863,12 @@ private func makePlayerVideo(fps: Int, frameCount: Int) throws -> LYSVGAVideo {
     )
 }
 
-private func makePlayerVideoWithAudio(fps: Int, frameCount: Int) throws -> LYSVGAVideo {
+private func makePlayerVideoWithAudio(
+    fps: Int,
+    frameCount: Int,
+    audioStartFrame: Int = 0,
+    audioStartTime: Int = 0
+) throws -> LYSVGAVideo {
     try LYSVGAVideo(
         version: "player-view-audio-test",
         canvasSize: LYSVGASize(width: 100, height: 100),
@@ -808,9 +879,9 @@ private func makePlayerVideoWithAudio(fps: Int, frameCount: Int) throws -> LYSVG
         sprites: [],
         audios: [LYSVGAAudioCue(
             audioKey: "audio",
-            startFrame: 0,
+            startFrame: audioStartFrame,
             endFrame: frameCount,
-            startTime: 0,
+            startTime: audioStartTime,
             totalTime: frameCount * 100
         )]
     )
