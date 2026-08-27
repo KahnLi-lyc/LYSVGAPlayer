@@ -292,7 +292,7 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertPixel(image, x: 16, y: 10, rgba: (0, 0, 0, 0), tolerance: 4)
     }
 
-    func testMultipleMatteContentsShareOneHostAtFirstContentZOrder() async throws {
+    func testConsecutiveMatteContentsShareOneHostAtFirstContentZOrder() async throws {
         let normal = vectorSprite(
             key: "normal",
             rect: LYSVGARect(x: 0, y: 15, width: 20, height: 5),
@@ -303,7 +303,7 @@ final class LYSVGARendererTests: XCTestCase {
             width: 20,
             height: 20,
             images: base.images,
-            sprites: [base.sprites[0], base.sprites[1], normal, base.sprites[2]]
+            sprites: [base.sprites[0], base.sprites[1], base.sprites[2], normal]
         )
         let renderer = LYSVGARenderer()
 
@@ -314,12 +314,100 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertEqual(renderer.matteHosts.count, 1)
         XCTAssertEqual(host.contentLayers.count, 2)
         XCTAssertTrue(host.contentLayers[0] === renderer.spriteLayers[1])
-        XCTAssertTrue(host.contentLayers[1] === renderer.spriteLayers[3])
+        XCTAssertTrue(host.contentLayers[1] === renderer.spriteLayers[2])
         XCTAssertTrue(renderer.canvasLayer.sublayers?.first === host.layer)
-        XCTAssertTrue(renderer.canvasLayer.sublayers?.last === renderer.spriteLayers[2])
+        XCTAssertTrue(renderer.canvasLayer.sublayers?.last === renderer.spriteLayers[3])
         let image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 4, y: 5, rgba: (255, 0, 0, 255), tolerance: 4)
         XCTAssertPixel(image, x: 16, y: 5, rgba: (0, 0, 0, 0), tolerance: 4)
+    }
+
+    func testSeparatedMatteContentsUseDistinctHostsAndPreserveSiblingZOrder() async throws {
+        let matte = vectorSprite(
+            key: "mask.matte",
+            rect: LYSVGARect(x: 0, y: 0, width: 20, height: 20),
+            color: LYSVGAColor(red: 1, green: 1, blue: 1, alpha: 1),
+            alphas: [1, 0]
+        )
+        let maskedA = vectorSprite(
+            key: "maskedA.vector",
+            rect: LYSVGARect(x: 0, y: 0, width: 20, height: 20),
+            color: LYSVGAColor(red: 1, green: 0, blue: 0, alpha: 1),
+            matteKey: "mask.matte",
+            alphas: [1, 1]
+        )
+        let normal = vectorSprite(
+            key: "normal.vector",
+            rect: LYSVGARect(x: 0, y: 0, width: 20, height: 20),
+            color: LYSVGAColor(red: 0, green: 1, blue: 0, alpha: 1),
+            alphas: [1, 1]
+        )
+        let maskedB = vectorSprite(
+            key: "maskedB.vector",
+            rect: LYSVGARect(x: 0, y: 0, width: 20, height: 20),
+            color: LYSVGAColor(red: 0, green: 0, blue: 1, alpha: 1),
+            matteKey: "mask",
+            alphas: [1, 1]
+        )
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: try makeVideo(
+            width: 20,
+            height: 20,
+            frames: 2,
+            sprites: [matte, maskedA, normal, maskedB]
+        ))
+        renderer.display(frame: 0)
+
+        guard renderer.matteHosts.count == 2 else {
+            return XCTFail("Expected separated masked contents to create two hosts")
+        }
+        let firstHost = renderer.matteHosts[0]
+        let secondHost = renderer.matteHosts[1]
+        XCTAssertEqual(firstHost.contentLayers.count, 1)
+        XCTAssertEqual(secondHost.contentLayers.count, 1)
+        XCTAssertTrue(firstHost.contentLayers[0] === renderer.spriteLayers[1])
+        XCTAssertTrue(secondHost.contentLayers[0] === renderer.spriteLayers[3])
+        XCTAssertFalse(firstHost.matteLayer === secondHost.matteLayer)
+        XCTAssertTrue(renderer.canvasLayer.sublayers?[0] === firstHost.layer)
+        XCTAssertTrue(renderer.canvasLayer.sublayers?[1] === renderer.spriteLayers[2])
+        XCTAssertTrue(renderer.canvasLayer.sublayers?[2] === secondHost.layer)
+        XCTAssertPixel(
+            render(renderer.rootLayer, size: CGSize(width: 20, height: 20)),
+            x: 10,
+            y: 10,
+            rgba: (0, 0, 255, 255),
+            tolerance: 4
+        )
+
+        renderer.display(frame: 2)
+
+        XCTAssertTrue(firstHost.layer.isHidden)
+        XCTAssertTrue(secondHost.layer.isHidden)
+
+        renderer.display(frame: 0)
+
+        XCTAssertFalse(firstHost.layer.isHidden)
+        XCTAssertFalse(secondHost.layer.isHidden)
+        XCTAssertPixel(
+            render(renderer.rootLayer, size: CGSize(width: 20, height: 20)),
+            x: 10,
+            y: 10,
+            rgba: (0, 0, 255, 255),
+            tolerance: 4
+        )
+
+        renderer.display(frame: 1)
+
+        XCTAssertTrue(firstHost.layer.isHidden)
+        XCTAssertTrue(secondHost.layer.isHidden)
+        XCTAssertPixel(
+            render(renderer.rootLayer, size: CGSize(width: 20, height: 20)),
+            x: 10,
+            y: 10,
+            rgba: (0, 255, 0, 255),
+            tolerance: 4
+        )
     }
 
     func testInvalidVectorStyleAndTransformNeverReachShapeLayer() async throws {
@@ -356,6 +444,90 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertNil(layer.lineDashPattern)
         XCTAssertEqual(layer.lineDashPhase, 0)
         XCTAssertEqual(layer.affineTransform(), .identity)
+    }
+
+    func testFiniteShapeGeometryPreservesDimensionsAndRejectsDerivedOverflow() async throws {
+        let maximum = Double.greatestFiniteMagnitude
+        let preciseCoordinate = 1e16
+        let preciseRect = LYSVGARect(
+            x: preciseCoordinate,
+            y: preciseCoordinate,
+            width: 1,
+            height: 1
+        )
+        let preciseEllipse = LYSVGAShape(
+            type: .ellipse(LYSVGAShapeEllipse(
+                centerX: preciseCoordinate,
+                centerY: preciseCoordinate,
+                radiusX: 1,
+                radiusY: 1
+            ))
+        )
+        let oversizedCornerRect = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: 0, y: 0, width: 12, height: 10),
+                cornerRadius: maximum
+            ))
+        )
+        let overflowingRect = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: maximum, y: maximum, width: maximum, height: maximum),
+                cornerRadius: maximum
+            ))
+        )
+        let overflowingEllipse = LYSVGAShape(
+            type: .ellipse(LYSVGAShapeEllipse(
+                centerX: maximum,
+                centerY: maximum,
+                radiusX: maximum,
+                radiusY: maximum
+            ))
+        )
+
+        let finiteRect = try XCTUnwrap(preciseRect.finiteCGRect)
+        XCTAssertEqual(finiteRect.width, 1)
+        XCTAssertEqual(finiteRect.height, 1)
+        XCTAssertEqual(
+            LYSVGAShapeDescriptor(shape: preciseEllipse)?.path.boundingBoxOfPath.size,
+            CGSize(width: 2, height: 2)
+        )
+        let clampedCornerPath = try XCTUnwrap(LYSVGAShapeDescriptor(shape: oversizedCornerRect)?.path)
+        let expectedCornerPath = CGPath(
+            roundedRect: CGRect(x: 0, y: 0, width: 12, height: 10),
+            cornerWidth: 5,
+            cornerHeight: 5,
+            transform: nil
+        )
+        XCTAssertEqual(clampedCornerPath, expectedCornerPath)
+        XCTAssertNil(LYSVGARect(
+            x: maximum,
+            y: maximum,
+            width: maximum,
+            height: maximum
+        ).finiteCGRect)
+        XCTAssertNil(LYSVGAShapeDescriptor(shape: overflowingRect))
+        XCTAssertNil(LYSVGAShapeDescriptor(shape: overflowingEllipse))
+
+        let renderer = LYSVGARenderer()
+        try await renderer.prepare(video: try makeVideo(
+            width: 10,
+            height: 10,
+            sprites: [LYSVGASprite(imageKey: "overflow.vector", frames: [frame(
+                width: 10,
+                height: 10,
+                shapes: [overflowingRect, overflowingEllipse]
+            )])]
+        ))
+        renderer.display(frame: 0)
+
+        XCTAssertTrue(renderer.spriteLayers[0].vectorLayer.shapeLayers.isEmpty)
+        XCTAssertPixel(
+            render(renderer.rootLayer, size: CGSize(width: 10, height: 10)),
+            x: 5,
+            y: 5,
+            rgba: (0, 0, 0, 0),
+            tolerance: 1
+        )
     }
 
     func testMissingMatteKeepsReferencedContentHidden() async throws {
@@ -615,17 +787,26 @@ private extension LYSVGARendererTests {
         )
     }
 
-    func vectorSprite(key: String, rect: LYSVGARect, color: LYSVGAColor) -> LYSVGASprite {
-        LYSVGASprite(
+    func vectorSprite(
+        key: String,
+        rect: LYSVGARect,
+        color: LYSVGAColor,
+        matteKey: String? = nil,
+        alphas: [Double] = [1]
+    ) -> LYSVGASprite {
+        let shape = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(rect: rect, cornerRadius: 0)),
+            style: LYSVGAShapeStyle(fill: color)
+        )
+        return LYSVGASprite(
             imageKey: key,
-            frames: [frame(
+            frames: alphas.map { alpha in frame(
+                alpha: alpha,
                 width: 20,
                 height: 20,
-                shapes: [LYSVGAShape(
-                    type: .rect(LYSVGAShapeRect(rect: rect, cornerRadius: 0)),
-                    style: LYSVGAShapeStyle(fill: color)
-                )]
-            )]
+                shapes: [shape]
+            ) },
+            matteKey: matteKey
         )
     }
 

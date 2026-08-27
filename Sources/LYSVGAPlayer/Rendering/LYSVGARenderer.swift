@@ -12,6 +12,7 @@ final class LYSVGARenderer {
     private(set) var matteHosts: [LYSVGAMatteHost] = []
 
     private var missingMatteSpriteIndices: Set<Int> = []
+    private var additionalMatteLayers: [LYSVGASpriteLayer] = []
 
     init() {
         rootLayer.anchorPoint = .zero
@@ -73,6 +74,7 @@ final class LYSVGARenderer {
             guard let video, (0..<video.frameCount).contains(index) else {
                 currentFrame = nil
                 spriteLayers.forEach { $0.hide() }
+                additionalMatteLayers.forEach { $0.hide() }
                 matteHosts.forEach { $0.layer.isHidden = true }
                 return
             }
@@ -80,6 +82,9 @@ final class LYSVGARenderer {
             currentFrame = index
             for spriteLayer in spriteLayers {
                 spriteLayer.display(frame: index)
+            }
+            for matteLayer in additionalMatteLayers {
+                matteLayer.display(frame: index)
             }
             for index in missingMatteSpriteIndices {
                 spriteLayers[index].hide()
@@ -99,6 +104,7 @@ final class LYSVGARenderer {
             self.video = video
             matteHosts = []
             missingMatteSpriteIndices = []
+            additionalMatteLayers = []
 
             let canvasSize = CGSize(width: video.canvasSize.width, height: video.canvasSize.height)
             canvasLayer.bounds = CGRect(origin: .zero, size: canvasSize)
@@ -110,29 +116,53 @@ final class LYSVGARenderer {
             let matteResolution = resolveMattes(in: video.sprites)
             missingMatteSpriteIndices = matteResolution.missing
             let matteIndices = Set(matteResolution.contentToMatte.values)
-            var hostsByMatteIndex: [Int: LYSVGAMatteHost] = [:]
+            var matteHostCounts: [Int: Int] = [:]
+            var activeHost: LYSVGAMatteHost?
+            var activeMatteIndex: Int?
 
             for (index, spriteLayer) in spriteLayers.enumerated() {
                 if matteIndices.contains(index) {
+                    activeHost = nil
+                    activeMatteIndex = nil
                     continue
                 }
                 if missingMatteSpriteIndices.contains(index) {
+                    activeHost = nil
+                    activeMatteIndex = nil
                     spriteLayer.hide()
                     continue
                 }
                 guard let matteIndex = matteResolution.contentToMatte[index] else {
+                    activeHost = nil
+                    activeMatteIndex = nil
                     canvasLayer.addSublayer(spriteLayer)
                     continue
                 }
 
                 let host: LYSVGAMatteHost
-                if let existing = hostsByMatteIndex[matteIndex] {
-                    host = existing
+                if activeMatteIndex == matteIndex, let activeHost {
+                    host = activeHost
                 } else {
-                    host = LYSVGAMatteHost(matteLayer: spriteLayers[matteIndex], canvasSize: canvasSize)
-                    hostsByMatteIndex[matteIndex] = host
+                    let useCount = matteHostCounts[matteIndex, default: 0]
+                    let matteLayer: LYSVGASpriteLayer
+                    if useCount == 0 {
+                        matteLayer = spriteLayers[matteIndex]
+                    } else {
+                        let matteSprite = video.sprites[matteIndex]
+                        let image = images[LYSVGAResourceKey.canonicalize(matteSprite.imageKey)]?.cgImage
+                        matteLayer = LYSVGASpriteLayer(
+                            sprite: matteSprite,
+                            image: image,
+                            canvasSize: canvasSize
+                        )
+                        additionalMatteLayers.append(matteLayer)
+                    }
+                    host = LYSVGAMatteHost(matteLayer: matteLayer, canvasSize: canvasSize)
+                    matteHostCounts[matteIndex] = useCount + 1
                     matteHosts.append(host)
                     canvasLayer.addSublayer(host.layer)
+                    activeHost = host
+                    activeMatteIndex = matteIndex
                 }
                 host.addContentLayer(spriteLayer)
             }

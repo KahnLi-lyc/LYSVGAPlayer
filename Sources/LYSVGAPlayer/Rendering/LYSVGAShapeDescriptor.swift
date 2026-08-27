@@ -42,7 +42,10 @@ struct LYSVGAShapeDescriptor {
                   value.cornerRadius.isFinite else {
                 return nil
             }
-            let radius = max(0, CGFloat(value.cornerRadius))
+            let radius = min(
+                max(0, CGFloat(value.cornerRadius)),
+                min(rect.width, rect.height) / 2
+            )
             return CGPath(
                 roundedRect: rect,
                 cornerWidth: radius,
@@ -55,12 +58,22 @@ struct LYSVGAShapeDescriptor {
                   value.radiusX >= 0, value.radiusY >= 0 else {
                 return nil
             }
-            let rect = CGRect(
-                x: value.centerX - value.radiusX,
-                y: value.centerY - value.radiusY,
-                width: value.radiusX * 2,
-                height: value.radiusY * 2
-            )
+            let minX = value.centerX - value.radiusX
+            let minY = value.centerY - value.radiusY
+            let maxX = value.centerX + value.radiusX
+            let maxY = value.centerY + value.radiusY
+            let width = value.radiusX * 2
+            let height = value.radiusY * 2
+            guard minX.isFinite, minY.isFinite, maxX.isFinite, maxY.isFinite,
+                  width.isFinite, height.isFinite,
+                  let rect = makeFiniteCGRect(
+                      x: minX,
+                      y: minY,
+                      width: width,
+                      height: height
+                  ) else {
+                return nil
+            }
             return CGPath(ellipseIn: rect, transform: nil)
         case .keep:
             return nil
@@ -122,7 +135,7 @@ extension LYSVGARect {
               width >= 0, height >= 0 else {
             return nil
         }
-        return CGRect(x: x, y: y, width: width, height: height)
+        return makeFiniteCGRect(x: x, y: y, width: width, height: height)
     }
 }
 
@@ -140,4 +153,27 @@ private extension Double {
     var clampedToUnit: CGFloat {
         CGFloat(min(max(self, 0), 1))
     }
+}
+
+private func makeFiniteCGRect(
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+) -> CGRect? {
+    guard x.isFinite, y.isFinite, width.isFinite, height.isFinite,
+          width >= 0, height >= 0 else {
+        return nil
+    }
+    let maxX = x + width
+    let maxY = y + height
+    guard maxX.isFinite, maxY.isFinite else { return nil }
+
+    let rect = CGRect(x: x, y: y, width: width, height: height)
+    guard rect.minX.isFinite, rect.minY.isFinite,
+          rect.maxX.isFinite, rect.maxY.isFinite,
+          rect.width.isFinite, rect.height.isFinite else {
+        return nil
+    }
+    return rect
 }
