@@ -23,6 +23,57 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertTrue(view.layer.sublayers?.contains(where: { $0 === view.rendererRootLayerForTesting }) == true)
     }
 
+    func testClearFromInstallFrameCallbackWinsOverReadyTransition() async throws {
+        let view = LYSVGAPlayerView()
+        let delegate = PlayerViewDelegateSpy()
+        delegate.onFrame = { playerView, _, _ in
+            delegate.onFrame = nil
+            playerView.clear()
+        }
+        view.delegate = delegate
+
+        do {
+            try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 4))
+            XCTFail("The reentrant clear must cancel the superseded installation.")
+        } catch {
+            XCTAssertEqual(error as? LYSVGAError, .cancelled)
+        }
+
+        XCTAssertEqual(view.playbackState, .idle)
+        XCTAssertNil(view.video)
+        XCTAssertNil(view.rendererRootLayerForTesting)
+        XCTAssertFalse(delegate.states.contains(.ready))
+    }
+
+    func testPlayFromInstallFrameCallbackKeepsInstalledResourcesForNewerPlayback() async throws {
+        let view = LYSVGAPlayerView()
+        let video = try makePlayerVideo(fps: 10, frameCount: 4)
+        let delegate = PlayerViewDelegateSpy()
+        var reentrantPlayError: Error?
+        delegate.onFrame = { playerView, _, _ in
+            delegate.onFrame = nil
+            do {
+                try playerView.play()
+            } catch {
+                reentrantPlayError = error
+            }
+        }
+        view.delegate = delegate
+
+        do {
+            try await view.setVideo(video)
+            XCTFail("The reentrant play must cancel the superseded installation request.")
+        } catch {
+            XCTAssertEqual(error as? LYSVGAError, .cancelled)
+        }
+
+        let rootLayer = try XCTUnwrap(view.rendererRootLayerForTesting)
+        XCTAssertNil(reentrantPlayError)
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertEqual(view.video, video)
+        XCTAssertTrue(rootLayer.superlayer === view.layer)
+    }
+
     func testPlayStartsAtAbsoluteRangeBoundaryForEachDirection() async throws {
         let view = LYSVGAPlayerView()
         try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 6))
@@ -39,6 +90,29 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.currentFrame, 4)
         XCTAssertEqual(view.currentProgress, 0.8, accuracy: 0.000_001)
         XCTAssertTrue(view.isReversePlayback)
+    }
+
+    func testClearFromPlayStartFrameCallbackWinsOverPlaybackStartup() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 4))
+        try view.play()
+        view.pause()
+
+        let delegate = PlayerViewDelegateSpy()
+        delegate.onFrame = { playerView, _, _ in
+            delegate.onFrame = nil
+            playerView.clear()
+        }
+        view.delegate = delegate
+
+        try view.play()
+
+        XCTAssertEqual(view.playbackState, .idle)
+        XCTAssertNil(view.video)
+        XCTAssertTrue(clock.isInvalidated)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertFalse(delegate.states.contains(.playing))
     }
 
     func testPlayRejectsMissingVideoOutOfBoundsRangeAndZeroRepeatCount() async throws {
@@ -86,6 +160,29 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(delegate.finishCount, 1)
         XCTAssertEqual(view.playbackState, .finished)
         XCTAssertEqual(view.currentFrame, 2)
+    }
+
+    func testClearFromFinishingFrameCallbackPreventsStaleLoopAndFinishCallbacks() async throws {
+        let view = LYSVGAPlayerView()
+        view.repeatMode = .count(2)
+        try await view.setVideo(try makePlayerVideo(fps: 2, frameCount: 4))
+        try view.play()
+        view.tickForTesting(at: 0)
+
+        let delegate = PlayerViewDelegateSpy()
+        delegate.onFrame = { playerView, _, _ in
+            delegate.onFrame = nil
+            playerView.clear()
+        }
+        view.delegate = delegate
+
+        view.tickForTesting(at: 100)
+
+        XCTAssertEqual(view.playbackState, .idle)
+        XCTAssertNil(view.video)
+        XCTAssertTrue(delegate.loopCrossings.isEmpty)
+        XCTAssertEqual(delegate.finishCount, 0)
+        XCTAssertFalse(delegate.states.contains(.finished))
     }
 
     func testPauseSettlesCurrentTimestampAndResumeUsesFreshBaseline() async throws {
@@ -399,6 +496,68 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.playbackState, .playing)
     }
 
+    func testPlayDuringApplicationInterruptionWaitsToStartClockAndAudioUntilActive() async throws {
+        let center = NotificationCenter()
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            },
+            notificationCenter: center
+        )
+        try await view.setVideo(try makePlayerVideoWithAudio(fps: 10, frameCount: 4))
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        try view.play()
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 0)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 0)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertTrue(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 1)
+        XCTAssertTrue(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+    }
+
+    func testSeekAndPlayDuringApplicationInterruptionDoesNotBrieflyStartAudio() async throws {
+        let center = NotificationCenter()
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            },
+            notificationCenter: center
+        )
+        try await view.setVideo(try makePlayerVideoWithAudio(fps: 10, frameCount: 4))
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        view.seek(toFrame: 2, andPlay: true)
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 2)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 0)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+    }
+
     func testApplicationAndWindowInterruptionsResumeOnlyAfterReattachment() async throws {
         let center = NotificationCenter()
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
@@ -531,25 +690,35 @@ private final class PlayerViewDelegateSpy: LYSVGAPlayerViewDelegate {
     var loopCrossings: [UInt] = []
     var finishCount = 0
     var errors: [LYSVGAError] = []
+    var onState: ((LYSVGAPlayerView, LYSVGAPlaybackState) -> Void)?
+    var onFrame: ((LYSVGAPlayerView, Int, Double) -> Void)?
+    var onLoop: ((LYSVGAPlayerView, UInt) -> Void)?
+    var onFinish: ((LYSVGAPlayerView) -> Void)?
+    var onFailure: ((LYSVGAPlayerView, LYSVGAError) -> Void)?
 
     func playerView(_ playerView: LYSVGAPlayerView, didChangePlaybackState state: LYSVGAPlaybackState) {
         states.append(state)
+        onState?(playerView, state)
     }
 
     func playerView(_ playerView: LYSVGAPlayerView, didDisplayFrame frame: Int, progress: Double) {
         frames.append((frame, progress))
+        onFrame?(playerView, frame, progress)
     }
 
     func playerView(_ playerView: LYSVGAPlayerView, didCrossLoops count: UInt) {
         loopCrossings.append(count)
+        onLoop?(playerView, count)
     }
 
     func playerViewDidFinish(_ playerView: LYSVGAPlayerView) {
         finishCount += 1
+        onFinish?(playerView)
     }
 
     func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError) {
         errors.append(error)
+        onFailure?(playerView, error)
     }
 }
 

@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 @testable import LYSVGAPlayer
 
@@ -130,6 +131,34 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
         XCTAssertEqual(view.playbackState, .failed)
     }
 
+    func testClearFromFailedStateCallbackPreventsStaleFailureCallback() async throws {
+        let failingFactory = FailingPreparationAudioFactory()
+        let delegate = PreparationDelegateSpy()
+        let view = LYSVGAPlayerView(candidateFactory: {
+            LYSVGAPlayerPreparationCandidate(
+                renderer: LYSVGARenderer(),
+                audioScheduler: LYSVGAAudioScheduler(factory: failingFactory)
+            )
+        })
+        delegate.onState = { playerView, state in
+            guard state == .failed else { return }
+            delegate.onState = nil
+            playerView.clear()
+        }
+        view.delegate = delegate
+
+        do {
+            try await view.setVideo(try preparationAudioVideo(version: "reentrant-failure"))
+            XCTFail("Audio preparation must fail.")
+        } catch {
+            XCTAssertEqual(error as? LYSVGAError, .cancelled)
+        }
+
+        XCTAssertEqual(view.playbackState, .idle)
+        XCTAssertNil(view.video)
+        XCTAssertEqual(delegate.failureCount, 0)
+    }
+
     func testCurrentRequestTaskCancellationReportsCancelledOnceAndFails() async throws {
         let preparationStarted = expectation(description: "preparation started")
         let delegate = PreparationDelegateSpy()
@@ -170,6 +199,105 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
         XCTAssertEqual(view.currentFrame, 0)
     }
 
+    func testPreparationAppliesLatestRuntimePropertiesToAudioAndAutoplayTimeline() async throws {
+        let preparationStarted = expectation(description: "preparation started")
+        var resumePreparation: CheckedContinuation<Void, Never>?
+        let clock = PreparationTestClock()
+        let audioFactory = PreparationTrackingAudioFactory()
+        let video = try preparationAudioVideo(version: "latest-properties", frameCount: 10)
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: .init(directory: TestSupport.temporaryDirectory()),
+            reader: { _, _ in Data([1]) },
+            decoder: { _ in video }
+        )
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            },
+            preparationHook: { _ in
+                preparationStarted.fulfill()
+                await withCheckedContinuation { resumePreparation = $0 }
+            }
+        )
+        let loadTask = Task {
+            try await view.load(.data(Data([1])), using: loader, cachePolicy: .noCache, autoplay: true)
+        }
+        await fulfillment(of: [preparationStarted])
+
+        view.playbackRate = 1.75
+        view.audioVolume = 0.4
+        view.isMuted = true
+        resumePreparation?.resume()
+        try await loadTask.value
+
+        XCTAssertEqual(audioFactory.player.rate, 1.75)
+        XCTAssertEqual(audioFactory.player.volume, 0)
+        view.tickForTesting(at: 10)
+        view.tickForTesting(at: 10.2)
+        XCTAssertEqual(view.currentFrame, 3)
+
+        view.isMuted = false
+        XCTAssertEqual(audioFactory.player.volume, 0.4, accuracy: 0.000_001)
+    }
+
+    func testAutoplayDuringMultipleApplicationInterruptionsWaitsUntilAllReasonsClear() async throws {
+        let preparationStarted = expectation(description: "preparation started")
+        var resumePreparation: CheckedContinuation<Void, Never>?
+        let center = NotificationCenter()
+        let clock = PreparationTestClock()
+        let audioFactory = PreparationTrackingAudioFactory()
+        let video = try preparationAudioVideo(version: "interrupted-autoplay", frameCount: 10)
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: .init(directory: TestSupport.temporaryDirectory()),
+            reader: { _, _ in Data([1]) },
+            decoder: { _ in video }
+        )
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            },
+            preparationHook: { _ in
+                preparationStarted.fulfill()
+                await withCheckedContinuation { resumePreparation = $0 }
+            },
+            notificationCenter: center
+        )
+        let loadTask = Task {
+            try await view.load(.data(Data([1])), using: loader, cachePolicy: .noCache, autoplay: true)
+        }
+        await fulfillment(of: [preparationStarted])
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+        center.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        resumePreparation?.resume()
+
+        try await loadTask.value
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertEqual(view.currentFrame, 0)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+
+        center.post(name: UIApplication.willEnterForegroundNotification, object: nil)
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertTrue(clock.isRunning)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+    }
+
     func testInvalidAutoplayConfigurationDoesNotPartiallyReplaceInstalledVideo() async throws {
         let installedVideo = try preparationVideo(version: "installed-before-autoplay")
         let autoplayVideo = try preparationVideo(version: "invalid-autoplay")
@@ -203,6 +331,11 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
 @MainActor
 private final class PreparationDelegateSpy: LYSVGAPlayerViewDelegate {
     private(set) var failureCount = 0
+    var onState: ((LYSVGAPlayerView, LYSVGAPlaybackState) -> Void)?
+
+    func playerView(_ playerView: LYSVGAPlayerView, didChangePlaybackState state: LYSVGAPlaybackState) {
+        onState?(playerView, state)
+    }
 
     func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError) {
         failureCount += 1
@@ -234,6 +367,62 @@ private final class FailingPreparationAudioPlayer: LYSVGAAudioPlaying {
     func stop() { stopCount += 1 }
 }
 
+@MainActor
+private final class PreparationTrackingAudioFactory: LYSVGAAudioPlayerFactory {
+    let player = PreparationTrackingAudioPlayer()
+
+    func makePlayer(data: Data) throws -> any LYSVGAAudioPlaying {
+        player
+    }
+}
+
+@MainActor
+private final class PreparationTrackingAudioPlayer: LYSVGAAudioPlaying {
+    let duration: TimeInterval = 10
+    var currentTime: TimeInterval = 0
+    var volume: Float = 1
+    var rate: Float = 1
+    var enableRate = false
+    private(set) var isPlaying = false
+    private(set) var playCount = 0
+
+    func prepareToPlay() -> Bool { true }
+
+    func play() -> Bool {
+        playCount += 1
+        isPlaying = true
+        return true
+    }
+
+    func pause() {
+        isPlaying = false
+    }
+
+    func stop() {
+        isPlaying = false
+    }
+}
+
+@MainActor
+private final class PreparationTestClock: LYSVGADisplayClock {
+    var timestamp: TimeInterval = 0
+    private(set) var isRunning = false
+    private(set) var isInvalidated = false
+
+    func start() {
+        isRunning = true
+    }
+
+    func pause() {
+        isRunning = false
+    }
+
+    func invalidate() {
+        isRunning = false
+        isInvalidated = true
+    }
+}
+
 private func preparationVideo(version: String) throws -> LYSVGAVideo {
     try LYSVGAVideo(
         version: version,
@@ -247,21 +436,21 @@ private func preparationVideo(version: String) throws -> LYSVGAVideo {
     )
 }
 
-private func preparationAudioVideo(version: String) throws -> LYSVGAVideo {
+private func preparationAudioVideo(version: String, frameCount: Int = 3) throws -> LYSVGAVideo {
     try LYSVGAVideo(
         version: version,
         canvasSize: LYSVGASize(width: 100, height: 100),
         fps: 10,
-        frameCount: 3,
+        frameCount: frameCount,
         images: [:],
         audioData: ["audio": Data([1])],
         sprites: [],
         audios: [LYSVGAAudioCue(
             audioKey: "audio",
             startFrame: 0,
-            endFrame: 3,
+            endFrame: frameCount,
             startTime: 0,
-            totalTime: 300
+            totalTime: frameCount * 100
         )]
     )
 }
