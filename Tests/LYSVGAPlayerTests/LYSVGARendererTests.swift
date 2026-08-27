@@ -51,6 +51,47 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertPixel(transformedImage, x: 30, y: 20, rgba: (255, 0, 0, 255), tolerance: 3)
     }
 
+    func testBitmapAndVectorRenderTogetherAndKeepReusesShapePool() async throws {
+        let bitmap = try pngData(size: CGSize(width: 20, height: 20), color: .red)
+        let vector = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: 10, y: 0, width: 10, height: 20),
+                cornerRadius: 0
+            )),
+            style: LYSVGAShapeStyle(fill: LYSVGAColor(red: 0, green: 1, blue: 0, alpha: 1))
+        )
+        let sprite = LYSVGASprite(imageKey: "composite", frames: [
+            frame(width: 20, height: 20, shapes: [vector]),
+            frame(width: 20, height: 20, shapes: [LYSVGAShape(type: .keep)]),
+        ])
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: try makeVideo(
+            width: 20,
+            height: 20,
+            images: ["composite.png": bitmap],
+            sprites: [sprite]
+        ))
+        renderer.display(frame: 0)
+
+        let spriteLayer = try XCTUnwrap(renderer.spriteLayers.first)
+        let vectorLayer = try XCTUnwrap(spriteLayer.vectorLayer)
+        XCTAssertTrue(spriteLayer.contentLayer.sublayers?.first === vectorLayer)
+        XCTAssertEqual(vectorLayer.shapeLayers.count, 1)
+        let shapeLayerID = ObjectIdentifier(vectorLayer.shapeLayers[0])
+        var image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
+        XCTAssertPixel(image, x: 5, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
+        XCTAssertPixel(image, x: 15, y: 10, rgba: (0, 255, 0, 255), tolerance: 3)
+
+        renderer.display(frame: 1)
+
+        XCTAssertEqual(ObjectIdentifier(vectorLayer.shapeLayers[0]), shapeLayerID)
+        XCTAssertEqual(vectorLayer.applicationCount, 1)
+        image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
+        XCTAssertPixel(image, x: 5, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
+        XCTAssertPixel(image, x: 15, y: 10, rgba: (0, 255, 0, 255), tolerance: 3)
+    }
+
     func testVectorDescriptorsMapGeometryStyleAndKeepUsesStableShapePool() async throws {
         let pathShape = LYSVGAShape(
             type: .path(LYSVGAShapePath(path: "M1 2 L11 2 L11 12 Z")),
@@ -177,7 +218,8 @@ final class LYSVGARendererTests: XCTestCase {
 
         let sprite = try XCTUnwrap(renderer.spriteLayers.first)
         let mask = try XCTUnwrap(sprite.clipMaskLayer)
-        XCTAssertTrue(sprite.mask === mask)
+        XCTAssertTrue(sprite.contentLayer.mask === mask)
+        XCTAssertNil(sprite.mask)
         var image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 4, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
         XCTAssertPixel(image, x: 16, y: 10, rgba: (0, 0, 0, 0), tolerance: 3)
@@ -185,10 +227,53 @@ final class LYSVGARendererTests: XCTestCase {
         renderer.display(frame: 1)
 
         XCTAssertTrue(sprite.clipMaskLayer === mask)
-        XCTAssertTrue(sprite.mask === mask)
+        XCTAssertTrue(sprite.contentLayer.mask === mask)
+        XCTAssertNil(sprite.mask)
         image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 4, y: 10, rgba: (0, 0, 0, 0), tolerance: 3)
         XCTAssertPixel(image, x: 16, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
+    }
+
+    func testLocalClipPathMovesWithBitmapVectorLayoutAndTransform() async throws {
+        let bitmap = try pngData(size: CGSize(width: 20, height: 10), color: .red)
+        let vector = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: 0, y: 0, width: 20, height: 5),
+                cornerRadius: 0
+            )),
+            style: LYSVGAShapeStyle(fill: LYSVGAColor(red: 0, green: 1, blue: 0, alpha: 1))
+        )
+        let sprite = LYSVGASprite(imageKey: "moving", frames: [frame(
+            x: 10,
+            y: 5,
+            width: 20,
+            height: 10,
+            transform: LYSVGATransform(a: 2, b: 0, c: 0, d: 2, tx: 5, ty: 3),
+            clipPath: "M0 0 H10 V10 H0 Z",
+            shapes: [vector]
+        )])
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: try makeVideo(
+            width: 60,
+            height: 40,
+            images: ["moving.png": bitmap],
+            sprites: [sprite]
+        ))
+        renderer.display(frame: 0)
+
+        let spriteLayer = try XCTUnwrap(renderer.spriteLayers.first)
+        let mask = try XCTUnwrap(spriteLayer.clipMaskLayer)
+        XCTAssertTrue(spriteLayer.contentLayer.mask === mask)
+        XCTAssertNil(spriteLayer.mask)
+        XCTAssertEqual(mask.bounds, CGRect(x: 0, y: 0, width: 20, height: 10))
+        XCTAssertEqual(mask.position, .zero)
+        XCTAssertEqual(mask.frame, CGRect(x: 0, y: 0, width: 20, height: 10))
+        XCTAssertEqual(spriteLayer.contentLayer.frame, CGRect(x: 15, y: 8, width: 40, height: 20))
+        let image = render(renderer.rootLayer, size: CGSize(width: 60, height: 40))
+        XCTAssertPixel(image, x: 25, y: 12, rgba: (0, 255, 0, 255), tolerance: 4)
+        XCTAssertPixel(image, x: 25, y: 22, rgba: (255, 0, 0, 255), tolerance: 4)
+        XCTAssertPixel(image, x: 45, y: 12, rgba: (0, 0, 0, 0), tolerance: 2)
     }
 
     func testSingleMatteMasksContentAndMatteSpriteIsNotDirectlyDisplayed() async throws {
@@ -263,7 +348,7 @@ final class LYSVGARendererTests: XCTestCase {
         try await renderer.prepare(video: video)
         renderer.display(frame: 0)
 
-        let layer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer?.shapeLayers.first)
+        let layer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer.shapeLayers.first)
         XCTAssertNil(layer.fillColor)
         XCTAssertNil(layer.strokeColor)
         XCTAssertEqual(layer.lineWidth, 0)
@@ -436,8 +521,37 @@ final class LYSVGARendererTests: XCTestCase {
             XCTAssertEqual(renderer.canvasLayer.affineTransform().a, frame.width / 100, accuracy: 0.0001)
             XCTAssertEqual(renderer.canvasLayer.affineTransform().d, frame.height / 50, accuracy: 0.0001)
             XCTAssertEqual(renderer.canvasLayer.frame, frame)
+            XCTAssertTrue(renderer.canvasLayer.masksToBounds)
             XCTAssertEqual(renderer.rootLayer.masksToBounds, mode == .scaleAspectFill)
         }
+    }
+
+    func testCanvasAlwaysClipsContentOutsideVideoWhenRootDoesNotClip() async throws {
+        let bitmap = try pngData(size: CGSize(width: 20, height: 20), color: .red)
+        let sprite = LYSVGASprite(
+            imageKey: "overflow",
+            frames: [frame(x: 10, width: 20, height: 20)]
+        )
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: try makeVideo(
+            width: 20,
+            height: 20,
+            images: ["overflow.png": bitmap],
+            sprites: [sprite]
+        ))
+        renderer.layout(
+            in: CGRect(x: 0, y: 0, width: 40, height: 20),
+            contentMode: .center,
+            clipsToBounds: false
+        )
+        renderer.display(frame: 0)
+
+        XCTAssertFalse(renderer.rootLayer.masksToBounds)
+        XCTAssertTrue(renderer.canvasLayer.masksToBounds)
+        let image = render(renderer.rootLayer, size: CGSize(width: 40, height: 20))
+        XCTAssertPixel(image, x: 25, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
+        XCTAssertPixel(image, x: 35, y: 10, rgba: (0, 0, 0, 0), tolerance: 2)
     }
 
     func testDecodedV1AndV2MatteFixturesPrepareAndRenderNonEmptyPixels() async throws {

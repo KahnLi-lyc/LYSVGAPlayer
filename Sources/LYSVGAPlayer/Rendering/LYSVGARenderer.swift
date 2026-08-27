@@ -16,6 +16,7 @@ final class LYSVGARenderer {
     init() {
         rootLayer.anchorPoint = .zero
         canvasLayer.anchorPoint = .zero
+        canvasLayer.masksToBounds = true
         rootLayer.addSublayer(canvasLayer)
     }
 
@@ -93,6 +94,7 @@ final class LYSVGARenderer {
         withoutAnimations {
             canvasLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
             canvasLayer.mask = nil
+            canvasLayer.masksToBounds = true
             currentFrame = nil
             self.video = video
             matteHosts = []

@@ -3,7 +3,7 @@ import QuartzCore
 @MainActor
 final class LYSVGASpriteLayer: CALayer {
     let contentLayer = CALayer()
-    let vectorLayer: LYSVGAVectorLayer?
+    let vectorLayer: LYSVGAVectorLayer
     let clipMaskLayer: CAShapeLayer?
 
     private let sprite: LYSVGASprite
@@ -18,11 +18,7 @@ final class LYSVGASpriteLayer: CALayer {
             return try? LYSVGASVGPathParser.parse(clipPath)
         }
 
-        if image == nil {
-            vectorLayer = LYSVGAVectorLayer(frames: sprite.frames, canvasSize: canvasSize)
-        } else {
-            vectorLayer = nil
-        }
+        vectorLayer = LYSVGAVectorLayer(frames: sprite.frames, canvasSize: canvasSize)
         clipMaskLayer = sprite.frames.contains(where: { $0.clipPath != nil }) ? CAShapeLayer() : nil
         super.init()
 
@@ -40,9 +36,7 @@ final class LYSVGASpriteLayer: CALayer {
         }
         addSublayer(contentLayer)
 
-        if let vectorLayer {
-            contentLayer.addSublayer(vectorLayer)
-        }
+        contentLayer.addSublayer(vectorLayer)
 
         if let clipMaskLayer {
             clipMaskLayer.anchorPoint = .zero
@@ -76,22 +70,22 @@ final class LYSVGASpriteLayer: CALayer {
         contentLayer.position = layout.origin
         contentLayer.setAffineTransform(transform)
 
-        if let vectorLayer {
-            vectorLayer.position = .zero
-            vectorLayer.display(frame: index, contentSize: layout.size)
-        }
+        vectorLayer.position = .zero
+        vectorLayer.display(frame: index, contentSize: layout.size)
 
         if let clipMaskLayer, clipPaths.indices.contains(index), let clipPath = clipPaths[index] {
+            clipMaskLayer.bounds = CGRect(origin: .zero, size: layout.size)
+            clipMaskLayer.position = .zero
             clipMaskLayer.path = clipPath
-            mask = clipMaskLayer
+            contentLayer.mask = clipMaskLayer
         } else {
-            mask = nil
+            contentLayer.mask = nil
         }
     }
 
     func hide() {
         isHidden = true
-        mask = nil
-        vectorLayer?.hideAllShapes()
+        contentLayer.mask = nil
+        vectorLayer.hideAllShapes()
     }
 }
