@@ -29,9 +29,10 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         )
         let (loader, session) = makeLoader()
         defer { session.invalidateAndCancel() }
+        let url = testURL
 
-        async let first = loader.load(.remote(testURL), cachePolicy: .noCache)
-        async let second = loader.load(.remote(testURL), cachePolicy: .noCache)
+        async let first = loader.load(.remote(url), cachePolicy: .noCache)
+        async let second = loader.load(.remote(url), cachePolicy: .noCache)
         let videos = try await (first, second)
 
         XCTAssertEqual(videos.0, videos.1)
@@ -46,9 +47,10 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         )
         let (loader, session) = makeLoader()
         defer { session.invalidateAndCancel() }
+        let url = testURL
 
-        let first = Task { try await loader.load(.remote(testURL), cachePolicy: .noCache) }
-        let second = Task { try await loader.load(.remote(testURL), cachePolicy: .noCache) }
+        let first = Task { try await loader.load(.remote(url), cachePolicy: .noCache) }
+        let second = Task { try await loader.load(.remote(url), cachePolicy: .noCache) }
         try await Task.sleep(nanoseconds: 20_000_000)
         first.cancel()
 
@@ -72,8 +74,9 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         )
         let (loader, session) = makeLoader()
         defer { session.invalidateAndCancel() }
+        let url = testURL
 
-        let task = Task { try await loader.load(.remote(testURL), cachePolicy: .noCache) }
+        let task = Task { try await loader.load(.remote(url), cachePolicy: .noCache) }
         try await Task.sleep(nanoseconds: 30_000_000)
         task.cancel()
         do {
@@ -84,6 +87,34 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         }
         try await Task.sleep(nanoseconds: 30_000_000)
         XCTAssertEqual(URLProtocolStub.stopCount, 1)
+    }
+
+    func testCancellingLastWaiterInterruptsDetachedDecoder() async throws {
+        let probe = DecoderCancellationProbe()
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: cacheConfiguration(directory: TestSupport.temporaryDirectory()),
+            reader: { _, _ in Data([0x01]) },
+            decoder: { _ in try probe.decodeUntilCancelled() }
+        )
+        let source = LYSVGASource.data(Data([0x01]), cacheKey: "cancellable-decode")
+        let task = Task { try await loader.load(source, cachePolicy: .noCache) }
+        for _ in 0 ..< 100 where probe.hasStarted == false {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertTrue(probe.hasStarted)
+
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation.")
+        } catch {
+            XCTAssertEqual(error as? LYSVGAError, .cancelled)
+        }
+        for _ in 0 ..< 100 where probe.observedCancellation == false {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertTrue(probe.observedCancellation)
     }
 
     func testAutomaticDiskCacheAndClearAvoidSecondNetworkRequest() async throws {
@@ -149,14 +180,52 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
         let session = URLSession(configuration: configuration)
-        let cacheConfiguration = LYSVGACacheConfiguration(
+        return (LYSVGAAssetLoader(session: session, cacheConfiguration: cacheConfiguration(directory: directory)), session)
+    }
+
+    private func cacheConfiguration(directory: URL) -> LYSVGACacheConfiguration {
+        LYSVGACacheConfiguration(
             directory: directory,
             memoryCountLimit: 4,
             memoryCostLimit: 1_024 * 1_024,
             diskSizeLimit: 4 * 1_024 * 1_024,
             timeToLive: 60
         )
-        return (LYSVGAAssetLoader(session: session, cacheConfiguration: cacheConfiguration), session)
+    }
+}
+
+private final class DecoderCancellationProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var started = false
+    private var cancelled = false
+
+    var hasStarted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return started
+    }
+
+    var observedCancellation: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func decodeUntilCancelled() throws -> LYSVGAVideo {
+        lock.lock()
+        started = true
+        lock.unlock()
+        while true {
+            do {
+                try Task.checkCancellation()
+            } catch {
+                lock.lock()
+                cancelled = true
+                lock.unlock()
+                throw error
+            }
+            Thread.sleep(forTimeInterval: 0.001)
+        }
     }
 }
 
@@ -173,6 +242,8 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) private static var stops = 0
 
     private var workItem: DispatchWorkItem?
+    private let stateLock = NSLock()
+    private var didFinish = false
 
     static var startCount: Int {
         lock.lock()
@@ -223,6 +294,9 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
                 httpVersion: "HTTP/1.1",
                 headerFields: nil
             )!
+            self.stateLock.lock()
+            self.didFinish = true
+            self.stateLock.unlock()
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             self.client?.urlProtocol(self, didLoad: configuration.data)
             self.client?.urlProtocolDidFinishLoading(self)
@@ -232,9 +306,14 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     }
 
     override func stopLoading() {
+        stateLock.lock()
+        let interrupted = didFinish == false
+        stateLock.unlock()
         workItem?.cancel()
-        Self.lock.lock()
-        Self.stops += 1
-        Self.lock.unlock()
+        if interrupted {
+            Self.lock.lock()
+            Self.stops += 1
+            Self.lock.unlock()
+        }
     }
 }

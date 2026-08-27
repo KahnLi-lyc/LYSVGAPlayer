@@ -13,10 +13,11 @@ enum LYSVGAV1Decoder {
         var images: [String: Data] = [:]
         for (key, filename) in spec.images {
             try Task.checkCancellation()
-            images[LYSVGAV2Decoder.normalizeImageKey(key)] = try resource(
+            images[LYSVGAV2Decoder.normalizeImageKey(key)] = try LYSVGAResourceResolver.resolve(
                 filename: filename,
                 key: key,
-                directory: resourceDirectory
+                directory: resourceDirectory,
+                fallbackExtension: "png"
             )
         }
 
@@ -27,7 +28,7 @@ enum LYSVGAV1Decoder {
             if let filename = candidates.first(where: {
                 FileManager.default.fileExists(atPath: resourceDirectory.appendingPathComponent($0).path)
             }) {
-                audioData[audio.audioKey] = try resource(
+                audioData[audio.audioKey] = try LYSVGAResourceResolver.resolve(
                     filename: filename,
                     key: audio.audioKey,
                     directory: resourceDirectory
@@ -55,22 +56,11 @@ enum LYSVGAV1Decoder {
         )
     }
 
-    private static func resource(filename: String, key: String, directory: URL) throws -> Data {
-        guard isSafeRelativePath(filename) else {
-            throw LYSVGAError.unsafeArchiveEntry(filename)
-        }
-        do {
-            return try Data(contentsOf: directory.appendingPathComponent(filename), options: [.mappedIfSafe])
-        } catch {
-            throw LYSVGAError.missingResource("\(key) -> \(filename)")
-        }
-    }
-
     private static func mapSprite(_ sprite: V1Sprite) -> LYSVGASprite {
         LYSVGASprite(
-            imageKey: LYSVGAV2Decoder.normalizeImageKey(sprite.imageKey),
+            imageKey: sprite.imageKey,
             frames: sprite.frames.map(mapFrame),
-            matteKey: sprite.matteKey.isEmpty ? nil : LYSVGAV2Decoder.normalizeImageKey(sprite.matteKey)
+            matteKey: sprite.matteKey.isEmpty ? nil : sprite.matteKey
         )
     }
 
@@ -116,7 +106,7 @@ enum LYSVGAV1Decoder {
             lineCap: LYSVGALineCap(rawValue: shape.styles.lineCap.lowercased()) ?? .butt,
             lineJoin: LYSVGALineJoin(rawValue: shape.styles.lineJoin.lowercased()) ?? .miter,
             miterLimit: shape.styles.miterLimit,
-            lineDash: [shape.styles.lineDashI, shape.styles.lineDashII, shape.styles.lineDashIII]
+            lineDash: shape.styles.lineDash
         )
         return LYSVGAShape(type: type, style: style, transform: mapTransform(shape.transform))
     }
@@ -133,13 +123,6 @@ enum LYSVGAV1Decoder {
         LYSVGATransform(a: value.a, b: value.b, c: value.c, d: value.d, tx: value.tx, ty: value.ty)
     }
 
-    static func isSafeRelativePath(_ path: String) -> Bool {
-        guard path.isEmpty == false, path.hasPrefix("/") == false, path.hasPrefix("\\") == false else {
-            return false
-        }
-        let components = path.replacingOccurrences(of: "\\", with: "/").split(separator: "/", omittingEmptySubsequences: false)
-        return components.allSatisfy { $0 != ".." && $0 != "." && $0.isEmpty == false }
-    }
 }
 
 private struct V1Spec: Decodable {
@@ -296,13 +279,11 @@ private struct V1Style: Decodable {
     var lineCap: String = "butt"
     var lineJoin: String = "miter"
     var miterLimit: Double = 0
-    var lineDashI: Double = 0
-    var lineDashII: Double = 0
-    var lineDashIII: Double = 0
+    var lineDash: [Double] = []
 
     private enum CodingKeys: String, CodingKey {
         case fill, stroke, strokeWidth, lineCap, lineJoin, miterLimit
-        case lineDashI, lineDashII, lineDashIII
+        case lineDash
     }
 
     init() {}
@@ -315,9 +296,7 @@ private struct V1Style: Decodable {
         lineCap = try container.decodeIfPresent(String.self, forKey: .lineCap) ?? "butt"
         lineJoin = try container.decodeIfPresent(String.self, forKey: .lineJoin) ?? "miter"
         miterLimit = try container.decodeIfPresent(Double.self, forKey: .miterLimit) ?? 0
-        lineDashI = try container.decodeIfPresent(Double.self, forKey: .lineDashI) ?? 0
-        lineDashII = try container.decodeIfPresent(Double.self, forKey: .lineDashII) ?? 0
-        lineDashIII = try container.decodeIfPresent(Double.self, forKey: .lineDashIII) ?? 0
+        lineDash = try container.decodeIfPresent([Double].self, forKey: .lineDash) ?? []
     }
 }
 

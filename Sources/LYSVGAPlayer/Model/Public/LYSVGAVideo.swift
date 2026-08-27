@@ -64,6 +64,10 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
         TimeInterval(frameCount) / TimeInterval(fps)
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case version, canvasSize, fps, frameCount, images, audioData, sprites, audios
+    }
+
     public init(
         version: String,
         canvasSize: LYSVGASize,
@@ -101,5 +105,19 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
         self.audioData = audioData
         self.sprites = sprites
         self.audios = audios
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self = try LYSVGAVideo(
+            version: container.decode(String.self, forKey: .version),
+            canvasSize: container.decode(LYSVGASize.self, forKey: .canvasSize),
+            fps: container.decode(Int.self, forKey: .fps),
+            frameCount: container.decode(Int.self, forKey: .frameCount),
+            images: container.decode([String: Data].self, forKey: .images),
+            audioData: container.decode([String: Data].self, forKey: .audioData),
+            sprites: container.decode([LYSVGASprite].self, forKey: .sprites),
+            audios: container.decode([LYSVGAAudioCue].self, forKey: .audios)
+        )
     }
 }

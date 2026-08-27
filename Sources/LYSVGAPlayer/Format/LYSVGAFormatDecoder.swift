@@ -39,12 +39,19 @@ enum LYSVGAFormatDecoder {
         do {
             try data.write(to: archiveURL, options: .atomic)
             let archive = try Archive(url: archiveURL, accessMode: .read)
-            for entry in archive {
+            let entries = Array(archive)
+            let destinations = try entries.map { entry -> URL in
                 try Task.checkCancellation()
-                guard LYSVGAV1Decoder.isSafeRelativePath(entry.path) else {
+                guard entry.type != .symlink else {
                     throw LYSVGAError.unsafeArchiveEntry(entry.path)
                 }
-                let destination = temporaryDirectory.appendingPathComponent(entry.path)
+                return try LYSVGAResourceResolver.containedURL(
+                    relativePath: entry.path,
+                    in: temporaryDirectory
+                )
+            }
+            for (entry, destination) in zip(entries, destinations) {
+                try Task.checkCancellation()
                 try fileManager.createDirectory(
                     at: destination.deletingLastPathComponent(),
                     withIntermediateDirectories: true

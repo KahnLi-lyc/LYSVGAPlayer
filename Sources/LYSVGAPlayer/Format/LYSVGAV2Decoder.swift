@@ -27,9 +27,9 @@ enum LYSVGAV2Decoder {
 
         let sprites = movie.sprites.map { sprite in
             LYSVGASprite(
-                imageKey: normalizeImageKey(sprite.imageKey),
+                imageKey: sprite.imageKey,
                 frames: sprite.frames.map(mapFrame),
-                matteKey: sprite.matteKey.isEmpty ? nil : normalizeImageKey(sprite.matteKey)
+                matteKey: sprite.matteKey.isEmpty ? nil : sprite.matteKey
             )
         }
         let audios = movie.audios.map {
@@ -64,7 +64,7 @@ enum LYSVGAV2Decoder {
                 x: frame.layout.x, y: frame.layout.y,
                 width: frame.layout.width, height: frame.layout.height
             ),
-            transform: LYSVGAModelMapper.transform(frame.transform),
+            transform: frame.hasTransform ? LYSVGAModelMapper.transform(frame.transform) : .identity,
             clipPath: frame.clipPath.isEmpty ? nil : frame.clipPath,
             shapes: frame.shapes.map(mapShape)
         )
@@ -126,21 +126,20 @@ enum LYSVGAV2Decoder {
     }
 
     private static func resolve(_ value: Data, key: String, resourceDirectory: URL?) throws -> Data {
-        guard let resourceDirectory,
-              let filename = String(data: value, encoding: .utf8),
+        guard let resourceDirectory else {
+            return value
+        }
+        guard let filename = String(data: value, encoding: .utf8),
               filename.isEmpty == false,
-              filename.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value < 0x7F }) else {
+              filename.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) == false }) else {
             return value
         }
-        let candidate = resourceDirectory.appendingPathComponent(filename)
-        guard FileManager.default.fileExists(atPath: candidate.path) else {
-            return value
-        }
-        do {
-            return try Data(contentsOf: candidate, options: [.mappedIfSafe])
-        } catch {
-            throw LYSVGAError.missingResource("\(key) -> \(filename)")
-        }
+        return try LYSVGAResourceResolver.resolve(
+            filename: filename,
+            key: key,
+            directory: resourceDirectory,
+            fallbackExtension: "png"
+        )
     }
 
     static func normalizeImageKey(_ value: String) -> String {

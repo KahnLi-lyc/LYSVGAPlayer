@@ -1,5 +1,8 @@
 import Foundation
 
+typealias LYSVGAAssetReader = @Sendable (LYSVGASource, URLSession) async throws -> Data
+typealias LYSVGAAssetDecoder = @Sendable (Data) throws -> LYSVGAVideo
+
 public actor LYSVGAAssetLoader {
     private struct LoadedAsset: Sendable {
         let data: Data
@@ -14,6 +17,8 @@ public actor LYSVGAAssetLoader {
 
     private let session: URLSession
     private let cache: LYSVGACache
+    private let reader: LYSVGAAssetReader
+    private let decoder: LYSVGAAssetDecoder
     private var requests: [String: SharedRequest] = [:]
 
     public init(
@@ -22,6 +27,20 @@ public actor LYSVGAAssetLoader {
     ) {
         self.session = session
         cache = LYSVGACache(configuration: cacheConfiguration)
+        reader = Self.read
+        decoder = LYSVGAFormatDecoder.decode
+    }
+
+    init(
+        session: URLSession,
+        cacheConfiguration: LYSVGACacheConfiguration,
+        reader: @escaping LYSVGAAssetReader,
+        decoder: @escaping LYSVGAAssetDecoder
+    ) {
+        self.session = session
+        cache = LYSVGACache(configuration: cacheConfiguration)
+        self.reader = reader
+        self.decoder = decoder
     }
 
     public func load(
@@ -39,7 +58,7 @@ public actor LYSVGAAssetLoader {
                 }
                 if let data = try? await cache.data(forKey: key) {
                     do {
-                        let video = try LYSVGAFormatDecoder.decode(data)
+                        let video = try await decodeOffActor(data)
                         await cache.store(video: video, forKey: key)
                         return video
                     } catch {
@@ -113,11 +132,13 @@ public actor LYSVGAAssetLoader {
             requests[key] = shared
         } else {
             let session = session
+            let reader = reader
+            let decoder = decoder
             let requestID = UUID()
-            let task = Task {
-                let data = try await Self.read(source, session: session)
+            let task = Task.detached {
+                let data = try await reader(source, session)
                 try Task.checkCancellation()
-                return LoadedAsset(data: data, video: try LYSVGAFormatDecoder.decode(data))
+                return LoadedAsset(data: data, video: try decoder(data))
             }
             requests[key] = SharedRequest(
                 id: requestID,
@@ -155,6 +176,16 @@ public actor LYSVGAAssetLoader {
             requests.removeValue(forKey: key)
         } else {
             requests[key] = shared
+        }
+    }
+
+    private func decodeOffActor(_ data: Data) async throws -> LYSVGAVideo {
+        let decoder = decoder
+        let task = Task.detached { try decoder(data) }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
         }
     }
 

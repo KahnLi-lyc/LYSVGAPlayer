@@ -29,6 +29,10 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 .product(name: "ZIPFoundation", package: "ZIPFoundation"),
+            ],
+            exclude: [
+                "Format/Protobuf/README.md",
+                "Format/Protobuf/svga.proto",
             ]
         ),
         .testTarget(

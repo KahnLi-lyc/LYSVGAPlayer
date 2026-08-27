@@ -2,60 +2,74 @@ import Compression
 import Foundation
 
 enum LYSVGACompression {
+    private static let maximumOutputSize = 256 * 1_024 * 1_024
+
     static func inflateZlib(_ data: Data) throws -> Data {
-        guard data.count >= 2 else {
-            throw LYSVGAError.dataTooShort(actual: data.count, minimum: 2)
+        guard data.count >= 6 else {
+            throw LYSVGAError.dataTooShort(actual: data.count, minimum: 6)
+        }
+        let compressionMethod = data[data.startIndex]
+        let flags = data[data.index(after: data.startIndex)]
+        guard compressionMethod & 0x0F == 8,
+              compressionMethod >> 4 <= 7,
+              (Int(compressionMethod) << 8 | Int(flags)) % 31 == 0,
+              flags & 0x20 == 0 else {
+            throw LYSVGAError.decompressionFailure("The zlib header is invalid or uses a preset dictionary.")
+        }
+        let payload = data.dropFirst(2).dropLast(4)
+        guard payload.isEmpty == false else {
+            throw LYSVGAError.decompressionFailure("The zlib payload is empty.")
         }
 
-        let placeholder = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
-        defer { placeholder.deallocate() }
-        var stream = compression_stream(
-            dst_ptr: placeholder,
-            dst_size: 0,
-            src_ptr: UnsafePointer(placeholder),
-            src_size: 0,
-            state: nil
-        )
-        let initialization = compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB)
-        guard initialization != COMPRESSION_STATUS_ERROR else {
-            throw LYSVGAError.decompressionFailure("Unable to initialize the zlib decoder.")
-        }
-        defer { compression_stream_destroy(&stream) }
-
-        let destinationSize = 64 * 1_024
-        let destination = UnsafeMutablePointer<UInt8>.allocate(capacity: destinationSize)
-        defer { destination.deallocate() }
-
-        return try data.withUnsafeBytes { rawBuffer in
-            guard let source = rawBuffer.bindMemory(to: UInt8.self).baseAddress else {
-                throw LYSVGAError.invalidData("The input buffer is empty.")
-            }
-            stream.src_ptr = source
-            stream.src_size = data.count
-
-            var output = Data()
-            while true {
-                try Task.checkCancellation()
-                stream.dst_ptr = destination
-                stream.dst_size = destinationSize
-                let status = compression_stream_process(&stream, Int32(COMPRESSION_STREAM_FINALIZE.rawValue))
-                let produced = destinationSize - stream.dst_size
-                if produced > 0 {
-                    output.append(destination, count: produced)
-                }
-
-                switch status {
-                case COMPRESSION_STATUS_END:
-                    guard stream.src_size == 0, output.isEmpty == false else {
-                        throw LYSVGAError.decompressionFailure("The zlib stream ended before producing a movie.")
+        var capacity = min(max(payload.count * 4, 64 * 1_024), maximumOutputSize)
+        while capacity <= maximumOutputSize {
+            try Task.checkCancellation()
+            var output = Data(count: capacity)
+            let decodedCount = output.withUnsafeMutableBytes { destination in
+                payload.withUnsafeBytes { source in
+                    guard let destinationAddress = destination.bindMemory(to: UInt8.self).baseAddress,
+                          let sourceAddress = source.bindMemory(to: UInt8.self).baseAddress else {
+                        return 0
                     }
-                    return output
-                case COMPRESSION_STATUS_OK:
-                    continue
-                default:
-                    throw LYSVGAError.decompressionFailure("The zlib stream is corrupt or truncated.")
+                    return compression_decode_buffer(
+                        destinationAddress,
+                        capacity,
+                        sourceAddress,
+                        payload.count,
+                        nil,
+                        COMPRESSION_ZLIB
+                    )
                 }
             }
+            if decodedCount > 0, decodedCount < capacity {
+                try Task.checkCancellation()
+                output.removeSubrange(decodedCount ..< output.count)
+                guard try adler32(output) == expectedAdler32(data) else {
+                    throw LYSVGAError.decompressionFailure("The zlib checksum does not match its payload.")
+                }
+                return output
+            }
+            guard capacity < maximumOutputSize else { break }
+            capacity = min(capacity * 2, maximumOutputSize)
         }
+        throw LYSVGAError.decompressionFailure("The zlib stream is corrupt, truncated, or exceeds 256 MiB.")
+    }
+
+    private static func expectedAdler32(_ data: Data) -> UInt32 {
+        data.suffix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+    }
+
+    private static func adler32(_ data: Data) throws -> UInt32 {
+        let modulus: UInt32 = 65_521
+        var first: UInt32 = 1
+        var second: UInt32 = 0
+        for (index, byte) in data.enumerated() {
+            if index.isMultiple(of: 64 * 1_024) {
+                try Task.checkCancellation()
+            }
+            first = (first + UInt32(byte)) % modulus
+            second = (second + first) % modulus
+        }
+        return second << 16 | first
     }
 }

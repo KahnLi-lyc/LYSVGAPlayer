@@ -16,6 +16,20 @@ final class LYSVGAModelTests: XCTestCase {
         XCTAssertThrowsError(try makeVideo(width: 100, fps: 20, frames: 0))
     }
 
+    func testCodableDecodeCannotBypassVideoValidation() throws {
+        let encoded = try JSONEncoder().encode(TestSupport.video())
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["fps"] = 0
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(LYSVGAVideo.self, from: JSONSerialization.data(withJSONObject: object))
+        ) { error in
+            guard case .invalidModel = error as? LYSVGAError else {
+                return XCTFail("Expected invalidModel, got \(error)")
+            }
+        }
+    }
+
     private func makeVideo(width: Double, fps: Int, frames: Int) throws -> LYSVGAVideo {
         try LYSVGAVideo(
             version: "test",
