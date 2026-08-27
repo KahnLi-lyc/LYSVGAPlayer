@@ -16,6 +16,8 @@ public enum LYSVGAError: Error, Equatable, Sendable {
     case cacheFailure(String)
     case cancelled
     case invalidModel(String)
+    case imagePreparationFailure(String)
+    case invalidPath(String)
 }
 
 extension LYSVGAError: LocalizedError {
@@ -36,6 +38,8 @@ extension LYSVGAError: LocalizedError {
         case let .cacheFailure(reason): "The SVGA cache failed: \(reason)"
         case .cancelled: "The SVGA operation was cancelled."
         case let .invalidModel(reason): "The SVGA model is invalid: \(reason)"
+        case let .imagePreparationFailure(key): "Unable to prepare the SVGA image: \(key)"
+        case let .invalidPath(reason): "The SVG path is invalid: \(reason)"
         }
     }
 }

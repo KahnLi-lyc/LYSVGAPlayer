@@ -13,7 +13,7 @@ enum LYSVGAV1Decoder {
         var images: [String: Data] = [:]
         for (key, filename) in spec.images {
             try Task.checkCancellation()
-            images[LYSVGAV2Decoder.normalizeImageKey(key)] = try LYSVGAResourceResolver.resolve(
+            images[LYSVGAResourceKey.canonicalize(key)] = try LYSVGAResourceResolver.resolve(
                 filename: filename,
                 key: key,
                 directory: resourceDirectory,

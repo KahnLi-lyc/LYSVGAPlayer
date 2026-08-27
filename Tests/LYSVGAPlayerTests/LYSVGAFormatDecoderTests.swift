@@ -129,6 +129,19 @@ final class LYSVGAFormatDecoderTests: XCTestCase {
         XCTAssertEqual(video.images["inline"], Data("printable-inline-data".utf8))
     }
 
+    func testV2AudioResourceKeyKeepsExistingExtensionlessMatchingBehavior() throws {
+        var movie = makeV2Movie()
+        var audio = Com_Opensource_Svga_AudioEntity()
+        audio.audioKey = "sound"
+        movie.audios = [audio]
+        movie.images = ["sound.mp3": Data("audio-bytes".utf8)]
+
+        let video = try LYSVGAV2Decoder.decode(movie.serializedData())
+
+        XCTAssertEqual(video.audioData["sound"], Data("audio-bytes".utf8))
+        XCTAssertTrue(video.images.isEmpty)
+    }
+
     func testV2MissingAndUnsafeExternalReferencesThrow() throws {
         let directory = TestSupport.temporaryDirectory()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -21,7 +21,7 @@ enum LYSVGAV2Decoder {
             if let audioKey = audioKeys.first(where: { resourceKey(key, matchesAudioKey: $0) }) {
                 audioData[audioKey] = resolved
             } else {
-                images[normalizeImageKey(key)] = resolved
+                images[LYSVGAResourceKey.canonicalize(key)] = resolved
             }
         }
 
@@ -142,13 +142,9 @@ enum LYSVGAV2Decoder {
         )
     }
 
-    static func normalizeImageKey(_ value: String) -> String {
-        (value as NSString).deletingPathExtension
-    }
-
     private static func resourceKey(_ resourceKey: String, matchesAudioKey audioKey: String) -> Bool {
         resourceKey == audioKey
             || (resourceKey as NSString).lastPathComponent == (audioKey as NSString).lastPathComponent
-            || normalizeImageKey(resourceKey) == normalizeImageKey(audioKey)
+            || LYSVGAResourceKey.canonicalize(resourceKey) == LYSVGAResourceKey.canonicalize(audioKey)
     }
 }
