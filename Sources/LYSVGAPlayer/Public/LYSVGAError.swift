@@ -24,6 +24,9 @@ public enum LYSVGAError: Error, Equatable, Sendable {
     case invalidPath(String)
     case invalidPlaybackConfiguration(String)
     case audioPreparationFailure(audioKey: String, reason: String)
+    case invalidExportConfiguration(String)
+    case exportEncodingFailure(frame: Int)
+    case exportFileFailure(path: String, reason: String)
 }
 
 extension LYSVGAError: LocalizedError {
@@ -57,6 +60,12 @@ extension LYSVGAError: LocalizedError {
         case let .invalidPlaybackConfiguration(reason): "The SVGA playback configuration is invalid: \(reason)"
         case let .audioPreparationFailure(audioKey, reason):
             "Unable to prepare SVGA audio '\(audioKey)': \(reason)"
+        case let .invalidExportConfiguration(reason):
+            "The SVGA export configuration is invalid: \(reason)"
+        case let .exportEncodingFailure(frame):
+            "Unable to encode SVGA frame \(frame) as PNG."
+        case let .exportFileFailure(path, reason):
+            "Unable to write the SVGA export at '\(path)': \(reason)"
         }
     }
 }
