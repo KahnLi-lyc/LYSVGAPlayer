@@ -1,6 +1,8 @@
 # Fixture attribution
 
-`mutiMatte.svga`, `matteRect.svga`, `matteBitmap_1.x.svga`, and `rose_2.0.0.svga` are sample assets copied from
+`mutiMatte.svga`, `matteRect.svga`, `matteBitmap_1.x.svga`,
+`matteBitmap.svga`, `rose_1.5.0.svga`, `rose_2.0.0.svga`, and
+`audio_biling.svga` are sample assets copied from
 [SVGAPlayer 2.5.8](https://github.com/svga/SVGAPlayer-iOS), pinned to commit
 `98cb1825cfbea8506e979d28d0a9269dcf12c20a`.
 
