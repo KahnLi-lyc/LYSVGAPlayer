@@ -42,6 +42,14 @@ let package = Package(
                 .copy("Fixtures"),
             ]
         ),
+        .testTarget(
+            name: "LYSVGABenchmarks",
+            dependencies: ["LYSVGAPlayer"],
+            path: "Benchmarks/LYSVGABenchmarks",
+            resources: [
+                .copy("Fixtures"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
