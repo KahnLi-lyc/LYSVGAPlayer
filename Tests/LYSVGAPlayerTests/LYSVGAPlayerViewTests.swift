@@ -708,6 +708,85 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.playbackState, .paused)
     }
 
+    func testPlayAfterReadyViewRemovalWaitsForWindowReattachment() async throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let container = UIView(frame: window.bounds)
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            }
+        )
+        window.addSubview(container)
+        container.addSubview(view)
+        try await view.setVideo(try makePlayerVideoWithAudio(fps: 10, frameCount: 4))
+
+        view.removeFromSuperview()
+        try view.play()
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 0)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+
+        container.addSubview(view)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertTrue(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 1)
+        XCTAssertTrue(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+    }
+
+    func testDetachedClearAndAutoplayWaitForWindowReattachment() async throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let container = UIView(frame: window.bounds)
+        let clock = PlayerViewTestClock()
+        let audioFactory = PlayerViewAudioFactory()
+        let video = try makePlayerVideoWithAudio(fps: 10, frameCount: 4)
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: .init(directory: TestSupport.temporaryDirectory()),
+            reader: { _, _ in Data([1]) },
+            decoder: { _ in video }
+        )
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            candidateFactory: {
+                LYSVGAPlayerPreparationCandidate(
+                    renderer: LYSVGARenderer(),
+                    audioScheduler: LYSVGAAudioScheduler(factory: audioFactory)
+                )
+            }
+        )
+        window.addSubview(container)
+        container.addSubview(view)
+        view.removeFromSuperview()
+        view.clear()
+
+        try await view.load(.data(Data([1])), using: loader, cachePolicy: .noCache, autoplay: true)
+
+        XCTAssertEqual(view.playbackState, .paused)
+        XCTAssertFalse(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 0)
+        XCTAssertFalse(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 0)
+
+        container.addSubview(view)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertTrue(clock.isRunning)
+        XCTAssertEqual(clock.startCount, 1)
+        XCTAssertTrue(audioFactory.player.isPlaying)
+        XCTAssertEqual(audioFactory.player.playCount, 1)
+    }
+
     func testClearInvalidatesClockRemovesInstalledResourcesAndReturnsIdle() async throws {
         let clock = PlayerViewTestClock()
         weak var installedScheduler: LYSVGAAudioScheduler?

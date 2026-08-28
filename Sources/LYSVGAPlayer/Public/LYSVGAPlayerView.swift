@@ -137,8 +137,6 @@ public final class LYSVGAPlayerView: UIView {
     public override func didMoveToWindow() {
         super.didMoveToWindow()
         if window == nil {
-            guard playbackState == .playing || shouldResumeAfterInterruption ||
-                interruptionReasons.contains(.windowDetached) else { return }
             beginInterruption(.windowDetached)
         } else {
             endInterruption(.windowDetached)
@@ -219,7 +217,7 @@ public final class LYSVGAPlayerView: UIView {
         let revision = beginMutation()
         generation &+= 1
         shouldResumeAfterInterruption = false
-        interruptionReasons.removeAll()
+        interruptionReasons = interruptionReasons.intersection([.windowDetached])
         clock?.invalidate()
         clock = nil
         audioScheduler?.clear()
