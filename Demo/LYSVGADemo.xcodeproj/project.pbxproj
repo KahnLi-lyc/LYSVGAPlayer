@@ -1,0 +1,391 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		189D1D6AF7BAEA1723B457A2 /* LYSVGAPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = B3A7E9F5ABCE8F9BC27684F3 /* LYSVGAPlayer */; };
+		27C6D4C7CBC0447033F7C148 /* rose_1.5.0.svga in Resources */ = {isa = PBXBuildFile; fileRef = D59836FAA3A8EEBDA0D1BBFB /* rose_1.5.0.svga */; };
+		439B7B6081C77EEA7F40C2E2 /* LYSVGADemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C50E5C4BF9ED012A1DD7DC /* LYSVGADemoApp.swift */; };
+		46215B453BAA7CA8EE42EBED /* SwiftUIDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */; };
+		958ACDFB182F514FB83BD892 /* matteBitmap.svga in Resources */ = {isa = PBXBuildFile; fileRef = F44F46A2005123C2E9CA31A2 /* matteBitmap.svga */; };
+		C599DB4408ACF5E323A0CF0D /* rose_2.0.0.svga in Resources */ = {isa = PBXBuildFile; fileRef = 7C1CE5806F7193192EC110AA /* rose_2.0.0.svga */; };
+		CE02DDBC29C80255D5A37045 /* audio_biling.svga in Resources */ = {isa = PBXBuildFile; fileRef = 064BCD11E179B7C6B615EE35 /* audio_biling.svga */; };
+		DA5BA2F2A37D5C535EF859F9 /* UIKitDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE267142DFF26E14D6BCBB6 /* UIKitDemoViewController.swift */; };
+		E56BC6FADE38271EFC1F82FB /* DemoSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD6DDF80DCC3E1E9160AA9C /* DemoSupport.swift */; };
+		FEAE1C3C84392EEBA24F325F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA0ADFB8EA7A1154220886FC /* Foundation.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		064BCD11E179B7C6B615EE35 /* audio_biling.svga */ = {isa = PBXFileReference; includeInIndex = 1; path = audio_biling.svga; sourceTree = "<group>"; };
+		1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SwiftUIDemoView.swift; sourceTree = "<group>"; };
+		1DD6DDF80DCC3E1E9160AA9C /* DemoSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoSupport.swift; sourceTree = "<group>"; };
+		527CAB9FD8AE308CD6A01B99 /* LYSVGADemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LYSVGADemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C1CE5806F7193192EC110AA /* rose_2.0.0.svga */ = {isa = PBXFileReference; includeInIndex = 1; path = rose_2.0.0.svga; sourceTree = "<group>"; };
+		AA0ADFB8EA7A1154220886FC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		BDE267142DFF26E14D6BCBB6 /* UIKitDemoViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UIKitDemoViewController.swift; sourceTree = "<group>"; };
+		D59836FAA3A8EEBDA0D1BBFB /* rose_1.5.0.svga */ = {isa = PBXFileReference; includeInIndex = 1; path = rose_1.5.0.svga; sourceTree = "<group>"; };
+		F44F46A2005123C2E9CA31A2 /* matteBitmap.svga */ = {isa = PBXFileReference; includeInIndex = 1; path = matteBitmap.svga; sourceTree = "<group>"; };
+		F6C50E5C4BF9ED012A1DD7DC /* LYSVGADemoApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LYSVGADemoApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A8ED491D4D02A48718C722D3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FEAE1C3C84392EEBA24F325F /* Foundation.framework in Frameworks */,
+				189D1D6AF7BAEA1723B457A2 /* LYSVGAPlayer in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		047ED85599A1CCEA26237C71 /* LYSVGADemo */ = {
+			isa = PBXGroup;
+			children = (
+				1DD6DDF80DCC3E1E9160AA9C /* DemoSupport.swift */,
+				F6C50E5C4BF9ED012A1DD7DC /* LYSVGADemoApp.swift */,
+				1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */,
+				BDE267142DFF26E14D6BCBB6 /* UIKitDemoViewController.swift */,
+			);
+			name = LYSVGADemo;
+			path = LYSVGADemo;
+			sourceTree = "<group>";
+		};
+		2819F215408B44BF3895286E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				527CAB9FD8AE308CD6A01B99 /* LYSVGADemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3AE026ACE67D885DE23932F6 = {
+			isa = PBXGroup;
+			children = (
+				2819F215408B44BF3895286E /* Products */,
+				89723FEB1ABD16F3868A48B3 /* Frameworks */,
+				047ED85599A1CCEA26237C71 /* LYSVGADemo */,
+				55AD12C608BD6572D79C773B /* Samples */,
+			);
+			sourceTree = "<group>";
+		};
+		55AD12C608BD6572D79C773B /* Samples */ = {
+			isa = PBXGroup;
+			children = (
+				064BCD11E179B7C6B615EE35 /* audio_biling.svga */,
+				F44F46A2005123C2E9CA31A2 /* matteBitmap.svga */,
+				D59836FAA3A8EEBDA0D1BBFB /* rose_1.5.0.svga */,
+				7C1CE5806F7193192EC110AA /* rose_2.0.0.svga */,
+			);
+			name = Samples;
+			path = Samples;
+			sourceTree = "<group>";
+		};
+		89723FEB1ABD16F3868A48B3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F69B6B50DE69349CAE2FC5DB /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F69B6B50DE69349CAE2FC5DB /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				AA0ADFB8EA7A1154220886FC /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F9C6E6980EE1754519B81792 /* LYSVGADemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17AC78C3F99BEB7885DB2B40 /* Build configuration list for PBXNativeTarget "LYSVGADemo" */;
+			buildPhases = (
+				2CD9DEDD69914D07F704196F /* Sources */,
+				A8ED491D4D02A48718C722D3 /* Frameworks */,
+				6171B243A52D34D59BD6CF59 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LYSVGADemo;
+			packageProductDependencies = (
+				B3A7E9F5ABCE8F9BC27684F3 /* LYSVGAPlayer */,
+			);
+			productName = LYSVGADemo;
+			productReference = 527CAB9FD8AE308CD6A01B99 /* LYSVGADemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B963A576742313754A246F1B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 33DE1164A21117E16C939D10 /* Build configuration list for PBXProject "LYSVGADemo" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3AE026ACE67D885DE23932F6;
+			minimizedProjectReferenceProxies = 0;
+			packageReferences = (
+				D0AD896F492DA4689A1A919B /* XCLocalSwiftPackageReference ".." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 2819F215408B44BF3895286E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F9C6E6980EE1754519B81792 /* LYSVGADemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6171B243A52D34D59BD6CF59 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE02DDBC29C80255D5A37045 /* audio_biling.svga in Resources */,
+				958ACDFB182F514FB83BD892 /* matteBitmap.svga in Resources */,
+				27C6D4C7CBC0447033F7C148 /* rose_1.5.0.svga in Resources */,
+				C599DB4408ACF5E323A0CF0D /* rose_2.0.0.svga in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2CD9DEDD69914D07F704196F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E56BC6FADE38271EFC1F82FB /* DemoSupport.swift in Sources */,
+				439B7B6081C77EEA7F40C2E2 /* LYSVGADemoApp.swift in Sources */,
+				46215B453BAA7CA8EE42EBED /* SwiftUIDemoView.swift in Sources */,
+				DA5BA2F2A37D5C535EF859F9 /* UIKitDemoViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1E8787604611B61B8067BF67 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lysvga.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		42F179C291F26F3100479B8C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		4834BD25A1E5BDC51355A348 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lysvga.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E04BD6923B9A328E914F921A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		17AC78C3F99BEB7885DB2B40 /* Build configuration list for PBXNativeTarget "LYSVGADemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E8787604611B61B8067BF67 /* Release */,
+				4834BD25A1E5BDC51355A348 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		33DE1164A21117E16C939D10 /* Build configuration list for PBXProject "LYSVGADemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E04BD6923B9A328E914F921A /* Debug */,
+				42F179C291F26F3100479B8C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D0AD896F492DA4689A1A919B /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B3A7E9F5ABCE8F9BC27684F3 /* LYSVGAPlayer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0AD896F492DA4689A1A919B /* XCLocalSwiftPackageReference ".." */;
+			productName = LYSVGAPlayer;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B963A576742313754A246F1B /* Project object */;
+}
