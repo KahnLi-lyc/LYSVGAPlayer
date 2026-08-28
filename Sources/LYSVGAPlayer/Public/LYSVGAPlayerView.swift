@@ -1,5 +1,125 @@
 import UIKit
 
+typealias LYSVGADynamicImageReader = @Sendable (URL) async throws -> (Data, URLResponse)
+
+private struct LYSVGARemoteDynamicImageRequest {
+    let token: UInt
+    let task: Task<LYSVGAPreparedImage, Error>
+}
+
+@MainActor
+private final class LYSVGADynamicImageCoordinator {
+    private weak var playerView: LYSVGAPlayerView?
+    private let reader: LYSVGADynamicImageReader
+    private var requests: [String: LYSVGARemoteDynamicImageRequest] = [:]
+    private var token: UInt = 0
+
+    init(reader: @escaping LYSVGADynamicImageReader) {
+        self.reader = reader
+    }
+
+    func attach(to playerView: LYSVGAPlayerView) {
+        self.playerView = playerView
+    }
+
+    func setImage(from url: URL, forKey key: String) async throws {
+        guard playerView != nil else {
+            throw LYSVGAError.cancelled
+        }
+        let standardKey = LYSVGAResourceKey.standardizeDynamicKey(key)
+        cancel(forStandardKey: standardKey)
+        token &+= 1
+        let requestToken = token
+        let task = makeTask(url: url, key: standardKey)
+        requests[standardKey] = LYSVGARemoteDynamicImageRequest(token: requestToken, task: task)
+
+        do {
+            let image = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+            guard isCurrent(key: standardKey, token: requestToken),
+                  Task.isCancelled == false,
+                  let playerView else {
+                throw LYSVGAError.cancelled
+            }
+            requests.removeValue(forKey: standardKey)
+            playerView.installRemoteDynamicImage(image, forKey: standardKey)
+        } catch {
+            let requestIsCurrent = isCurrent(key: standardKey, token: requestToken)
+            if requestIsCurrent {
+                requests.removeValue(forKey: standardKey)
+            }
+            guard requestIsCurrent, Task.isCancelled == false, playerView != nil else {
+                throw LYSVGAError.cancelled
+            }
+            if let error = error as? LYSVGAError {
+                throw error
+            }
+            if error is CancellationError {
+                throw LYSVGAError.cancelled
+            }
+            throw LYSVGAError.dynamicImageNetworkFailure(
+                key: standardKey,
+                reason: error.localizedDescription
+            )
+        }
+    }
+
+    func cancel(forKey key: String) {
+        cancel(forStandardKey: LYSVGAResourceKey.standardizeDynamicKey(key))
+    }
+
+    func cancelAll() {
+        for request in requests.values {
+            request.task.cancel()
+        }
+        requests.removeAll(keepingCapacity: false)
+    }
+
+    nonisolated func ownerReleased() {
+        Task { @MainActor [weak self] in
+            self?.cancelAll()
+        }
+    }
+
+    private func makeTask(url: URL, key: String) -> Task<LYSVGAPreparedImage, Error> {
+        let reader = reader
+        return Task {
+            let output: (Data, URLResponse)
+            do {
+                output = try await reader(url)
+            } catch {
+                if error is CancellationError || Task.isCancelled {
+                    throw LYSVGAError.cancelled
+                }
+                throw LYSVGAError.dynamicImageNetworkFailure(
+                    key: key,
+                    reason: error.localizedDescription
+                )
+            }
+
+            try Task.checkCancellation()
+            guard let response = output.1 as? HTTPURLResponse else {
+                throw LYSVGAError.dynamicImageInvalidResponse(key: key)
+            }
+            guard (200..<300).contains(response.statusCode) else {
+                throw LYSVGAError.dynamicImageHTTPStatus(key: key, status: response.statusCode)
+            }
+            return try await LYSVGADynamicImageDecoder.decode(output.0, key: key)
+        }
+    }
+
+    private func cancel(forStandardKey key: String) {
+        requests.removeValue(forKey: key)?.task.cancel()
+    }
+
+    private func isCurrent(key: String, token: UInt) -> Bool {
+        requests[key]?.token == token
+    }
+}
+
 /// Receives player events on the main actor.
 @MainActor
 public protocol LYSVGAPlayerViewDelegate: AnyObject {
@@ -84,6 +204,7 @@ public final class LYSVGAPlayerView: UIView {
     private let candidateFactory: CandidateFactory
     private let preparationHook: PreparationHook?
     private let notificationCenter: NotificationCenter
+    private let dynamicImageCoordinator: LYSVGADynamicImageCoordinator
 
     private var renderer: LYSVGARenderer?
     private var audioScheduler: LYSVGAAudioScheduler?
@@ -96,13 +217,16 @@ public final class LYSVGAPlayerView: UIView {
     private var notificationsInstalled = false
     private var interruptionReasons: Set<LYSVGAPlayerInterruptionReason> = []
     private var shouldResumeAfterInterruption = false
+    private var dynamicContents = LYSVGADynamicContentStore()
 
     public override init(frame: CGRect) {
         clockFactory = Self.defaultClockFactory
         candidateFactory = Self.defaultCandidateFactory
         preparationHook = nil
         notificationCenter = .default
+        dynamicImageCoordinator = LYSVGADynamicImageCoordinator(reader: Self.defaultDynamicImageReader)
         super.init(frame: frame)
+        dynamicImageCoordinator.attach(to: self)
         commonInit()
     }
 
@@ -111,7 +235,9 @@ public final class LYSVGAPlayerView: UIView {
         candidateFactory = Self.defaultCandidateFactory
         preparationHook = nil
         notificationCenter = .default
+        dynamicImageCoordinator = LYSVGADynamicImageCoordinator(reader: Self.defaultDynamicImageReader)
         super.init(coder: coder)
+        dynamicImageCoordinator.attach(to: self)
         commonInit()
     }
 
@@ -119,14 +245,21 @@ public final class LYSVGAPlayerView: UIView {
         clockFactory: @escaping ClockFactory = LYSVGAPlayerView.defaultClockFactory,
         candidateFactory: @escaping CandidateFactory = LYSVGAPlayerView.defaultCandidateFactory,
         preparationHook: PreparationHook? = nil,
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        dynamicImageReader: @escaping LYSVGADynamicImageReader = LYSVGAPlayerView.defaultDynamicImageReader
     ) {
         self.clockFactory = clockFactory
         self.candidateFactory = candidateFactory
         self.preparationHook = preparationHook
         self.notificationCenter = notificationCenter
+        dynamicImageCoordinator = LYSVGADynamicImageCoordinator(reader: dynamicImageReader)
         super.init(frame: .zero)
+        dynamicImageCoordinator.attach(to: self)
         commonInit()
+    }
+
+    deinit {
+        dynamicImageCoordinator.ownerReleased()
     }
 
     public override func layoutSubviews() {
@@ -214,6 +347,7 @@ public final class LYSVGAPlayerView: UIView {
     }
 
     public func clear() {
+        clearDynamicContents()
         let revision = beginMutation()
         generation &+= 1
         shouldResumeAfterInterruption = false
@@ -257,6 +391,43 @@ public final class LYSVGAPlayerView: UIView {
         }
         seek(toFrame: frame, andPlay: andPlay, revision: revision)
     }
+
+    public func setImage(_ image: UIImage, forKey key: String) {
+        guard let image = LYSVGAPreparedImage(uiImage: image) else { return }
+        dynamicImageCoordinator.cancel(forKey: key)
+        dynamicContents.setImage(image, forKey: key)
+        applyDynamicContentsToRenderer()
+    }
+
+    public func setImage(from url: URL, forKey key: String) async throws {
+        let operation = beginRemoteDynamicImageOperation(from: url, forKey: key)
+        try await withTaskCancellationHandler {
+            try await operation.value
+        } onCancel: {
+            operation.cancel()
+        }
+    }
+
+    public func setAttributedText(_ text: NSAttributedString, forKey key: String) {
+        dynamicContents.setAttributedText(text, forKey: key)
+        applyDynamicContentsToRenderer()
+    }
+
+    public func setHidden(_ hidden: Bool, forKey key: String) {
+        dynamicContents.setHidden(hidden, forKey: key)
+        applyDynamicContentsToRenderer()
+    }
+
+    public func setDrawingHandler(_ handler: LYSVGADrawingHandler?, forKey key: String) {
+        dynamicContents.setDrawingHandler(handler, forKey: key)
+        applyDynamicContentsToRenderer()
+    }
+
+    public func clearDynamicContents() {
+        dynamicImageCoordinator.cancelAll()
+        dynamicContents.clear()
+        applyDynamicContentsToRenderer()
+    }
 }
 
 @MainActor
@@ -281,12 +452,27 @@ extension LYSVGAPlayerView {
         { LYSVGAPlayerPreparationCandidate(renderer: LYSVGARenderer(), audioScheduler: LYSVGAAudioScheduler()) }
     }
 
+    static var defaultDynamicImageReader: LYSVGADynamicImageReader {
+        { url in try await URLSession.shared.data(from: url) }
+    }
+
     var clockTimestamp: TimeInterval {
         clock?.timestamp ?? CACurrentMediaTime()
     }
 
     var rendererRootLayerForTesting: CALayer? {
         renderer?.rootLayer
+    }
+
+    var rendererForTesting: LYSVGARenderer? {
+        renderer
+    }
+
+    func beginRemoteDynamicImageOperation(from url: URL, forKey key: String) -> Task<Void, Error> {
+        let coordinator = dynamicImageCoordinator
+        return Task {
+            try await coordinator.setImage(from: url, forKey: key)
+        }
     }
 
     func tickForTesting(at timestamp: TimeInterval) {
@@ -387,6 +573,7 @@ private extension LYSVGAPlayerView {
         audioScheduler?.clear()
         renderer?.rootLayer.removeFromSuperlayer()
 
+        candidate.renderer.applyDynamicContents(dynamicContents, contentsScale: layer.contentsScale)
         renderer = candidate.renderer
         audioScheduler = candidate.audioScheduler
         self.video = video
@@ -398,6 +585,15 @@ private extension LYSVGAPlayerView {
         candidate.renderer.layout(in: bounds, contentMode: contentMode, clipsToBounds: clipsToBounds)
         guard display(frame: 0, forceDelegate: true, revision: revision) else { return false }
         return changeState(.ready, revision: revision)
+    }
+
+    func applyDynamicContentsToRenderer() {
+        renderer?.applyDynamicContents(dynamicContents, contentsScale: layer.contentsScale)
+    }
+
+    func installRemoteDynamicImage(_ image: LYSVGAPreparedImage, forKey key: String) {
+        dynamicContents.setImage(image, forKey: key)
+        applyDynamicContentsToRenderer()
     }
 
     func isCurrent(revision: UInt, generation requestGeneration: UInt? = nil) -> Bool {

@@ -13,6 +13,7 @@ final class LYSVGARenderer {
 
     private var missingMatteSpriteIndices: Set<Int> = []
     private var additionalMatteLayers: [LYSVGASpriteLayer] = []
+    private var isDisplayingFrame = false
 
     init() {
         rootLayer.anchorPoint = .zero
@@ -70,6 +71,9 @@ final class LYSVGARenderer {
     }
 
     func display(frame index: Int) {
+        guard isDisplayingFrame == false else { return }
+        isDisplayingFrame = true
+        defer { isDisplayingFrame = false }
         withoutAnimations {
             guard let video, (0..<video.frameCount).contains(index) else {
                 currentFrame = nil
@@ -92,6 +96,24 @@ final class LYSVGARenderer {
             for host in matteHosts {
                 host.layer.isHidden = host.matteLayer.isHidden || host.contentLayers.allSatisfy(\.isHidden)
             }
+        }
+    }
+
+    func applyDynamicContents(_ contents: LYSVGADynamicContentStore, contentsScale: CGFloat) {
+        for spriteLayer in spriteLayers {
+            spriteLayer.applyDynamicContent(
+                contents.entry(forSpriteKey: spriteLayer.imageKeyForDynamicContent),
+                contentsScale: contentsScale
+            )
+        }
+        for matteLayer in additionalMatteLayers {
+            matteLayer.applyDynamicContent(
+                contents.entry(forSpriteKey: matteLayer.imageKeyForDynamicContent),
+                contentsScale: contentsScale
+            )
+        }
+        if isDisplayingFrame == false, let currentFrame {
+            display(frame: currentFrame)
         }
     }
 

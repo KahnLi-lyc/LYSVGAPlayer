@@ -17,6 +17,10 @@ public enum LYSVGAError: Error, Equatable, Sendable {
     case cancelled
     case invalidModel(String)
     case imagePreparationFailure(String)
+    case dynamicImageInvalidResponse(key: String)
+    case dynamicImageHTTPStatus(key: String, status: Int)
+    case dynamicImageNetworkFailure(key: String, reason: String)
+    case dynamicImageDecodingFailure(key: String)
     case invalidPath(String)
     case invalidPlaybackConfiguration(String)
     case audioPreparationFailure(audioKey: String, reason: String)
@@ -41,6 +45,14 @@ extension LYSVGAError: LocalizedError {
         case .cancelled: "The SVGA operation was cancelled."
         case let .invalidModel(reason): "The SVGA model is invalid: \(reason)"
         case let .imagePreparationFailure(key): "Unable to prepare the SVGA image: \(key)"
+        case let .dynamicImageInvalidResponse(key):
+            "The dynamic image request for '\(key)' did not return an HTTP response."
+        case let .dynamicImageHTTPStatus(key, status):
+            "The dynamic image request for '\(key)' returned HTTP status \(status)."
+        case let .dynamicImageNetworkFailure(key, reason):
+            "Unable to load the dynamic image for '\(key)': \(reason)"
+        case let .dynamicImageDecodingFailure(key):
+            "Unable to decode the dynamic image for '\(key)'."
         case let .invalidPath(reason): "The SVG path is invalid: \(reason)"
         case let .invalidPlaybackConfiguration(reason): "The SVGA playback configuration is invalid: \(reason)"
         case let .audioPreparationFailure(audioKey, reason):

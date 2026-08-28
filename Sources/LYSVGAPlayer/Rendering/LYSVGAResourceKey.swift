@@ -16,4 +16,12 @@ enum LYSVGAResourceKey {
         }
         return result as String
     }
+
+    static func standardizeDynamicKey(_ value: String) -> String {
+        var result = value as NSString
+        while removableExtensions.contains(result.pathExtension.lowercased()) {
+            result = result.deletingPathExtension as NSString
+        }
+        return result as String
+    }
 }
