@@ -93,7 +93,7 @@ public final class LYSVGAPlayerView: UIView {
     private var generation: UInt = 0
     private var mutationRevision: UInt = 0
     private var didReportFinish = false
-    private var notificationTokens: [NSObjectProtocol] = []
+    private var notificationsInstalled = false
     private var interruptionReasons: Set<LYSVGAPlayerInterruptionReason> = []
     private var shouldResumeAfterInterruption = false
 
@@ -256,13 +256,6 @@ public final class LYSVGAPlayerView: UIView {
             frame = Int(min(maximumConvertible, (normalized * Double(lastFrame)).rounded()))
         }
         seek(toFrame: frame, andPlay: andPlay, revision: revision)
-    }
-
-    isolated deinit {
-        notificationTokens.forEach(notificationCenter.removeObserver)
-        clock?.invalidate()
-        audioScheduler?.clear()
-        renderer?.rootLayer.removeFromSuperlayer()
     }
 }
 
@@ -634,13 +627,11 @@ private extension LYSVGAPlayerView {
 
     func startPlaybackAfterSeek(at frame: Int, revision: UInt) {
         guard isCurrent(revision: revision), var timeline else { return }
-        if playbackState == .paused {
-            timeline.resume(at: clockTimestamp)
-        }
-        self.timeline = timeline
         didReportFinish = false
         shouldResumeAfterInterruption = false
         if interruptionReasons.isEmpty {
+            timeline.resume(at: clockTimestamp)
+            self.timeline = timeline
             audioScheduler?.seek(to: frame, reverse: isReversePlayback)
             audioScheduler?.resume()
             ensureClock().start()
@@ -665,42 +656,54 @@ private extension LYSVGAPlayerView {
     }
 
     func installNotificationsIfNeeded() {
-        guard notificationTokens.isEmpty else { return }
-        notificationTokens = [
-            notificationCenter.addObserver(
-                forName: UIApplication.willResignActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.beginInterruption(.applicationInactive) }
-            },
-            notificationCenter.addObserver(
-                forName: UIApplication.didEnterBackgroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.beginInterruption(.applicationBackground) }
-            },
-            notificationCenter.addObserver(
-                forName: UIApplication.willEnterForegroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.endInterruption(.applicationBackground) }
-            },
-            notificationCenter.addObserver(
-                forName: UIApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.endInterruption(.applicationInactive) }
-            },
-        ]
+        guard notificationsInstalled == false else { return }
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(applicationWillResignActive(_:)),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(applicationDidEnterBackground(_:)),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(applicationWillEnterForeground(_:)),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive(_:)),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        notificationsInstalled = true
     }
 
     func removeNotifications() {
-        notificationTokens.forEach(notificationCenter.removeObserver)
-        notificationTokens.removeAll()
+        guard notificationsInstalled else { return }
+        notificationCenter.removeObserver(self)
+        notificationsInstalled = false
+    }
+
+    @objc nonisolated func applicationWillResignActive(_ notification: Notification) {
+        MainActor.assumeIsolated { beginInterruption(.applicationInactive) }
+    }
+
+    @objc nonisolated func applicationDidEnterBackground(_ notification: Notification) {
+        MainActor.assumeIsolated { beginInterruption(.applicationBackground) }
+    }
+
+    @objc nonisolated func applicationWillEnterForeground(_ notification: Notification) {
+        MainActor.assumeIsolated { endInterruption(.applicationBackground) }
+    }
+
+    @objc nonisolated func applicationDidBecomeActive(_ notification: Notification) {
+        MainActor.assumeIsolated { endInterruption(.applicationInactive) }
     }
 
     func beginInterruption(_ reason: LYSVGAPlayerInterruptionReason) {

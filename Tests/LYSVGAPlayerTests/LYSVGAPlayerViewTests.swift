@@ -340,6 +340,49 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(view.currentFrame, 6)
     }
 
+    func testSeekAndPlayAfterUserPauseAndStopAdvancesFromTargetFrame() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 10))
+        try view.play()
+        clock.timestamp = 100
+        view.tickForTesting(at: 100)
+        view.pause()
+        view.stop()
+
+        clock.timestamp = 200
+        view.seek(toFrame: 5, andPlay: true)
+        view.tickForTesting(at: 200)
+        view.tickForTesting(at: 200.1)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertEqual(view.currentFrame, 6)
+    }
+
+    func testSeekAndPlayAfterApplicationInterruptionAndStopAdvancesFromTargetFrame() async throws {
+        let center = NotificationCenter()
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(
+            clockFactory: { _ in clock },
+            notificationCenter: center
+        )
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 10))
+        try view.play()
+        clock.timestamp = 100
+        view.tickForTesting(at: 100)
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+        view.stop()
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+
+        clock.timestamp = 200
+        view.seek(toFrame: 5, andPlay: true)
+        view.tickForTesting(at: 200)
+        view.tickForTesting(at: 200.1)
+
+        XCTAssertEqual(view.playbackState, .playing)
+        XCTAssertEqual(view.currentFrame, 6)
+    }
+
     func testSeekWithoutAndPlayPausesActivePlaybackAtTargetFrame() async throws {
         let clock = PlayerViewTestClock()
         let audioFactory = PlayerViewAudioFactory()
@@ -560,6 +603,24 @@ final class LYSVGAPlayerViewTests: XCTestCase {
 
         center.post(name: UIApplication.willEnterForegroundNotification, object: nil)
         XCTAssertEqual(view.playbackState, .playing)
+    }
+
+    func testClearRemovesNotificationObserversAndNextLoadReinstallsThem() async throws {
+        let center = NotificationCenter()
+        let view = LYSVGAPlayerView(notificationCenter: center)
+        let video = try makePlayerVideo(fps: 10, frameCount: 4)
+        try await view.setVideo(video)
+
+        view.clear()
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+        try await view.setVideo(video)
+        try view.play()
+
+        XCTAssertEqual(view.playbackState, .playing)
+
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+
+        XCTAssertEqual(view.playbackState, .paused)
     }
 
     func testPlayDuringApplicationInterruptionWaitsToStartClockAndAudioUntilActive() async throws {
@@ -825,6 +886,22 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         await Task.yield()
 
         XCTAssertNil(weakView)
+    }
+
+    func testDisplayLinkClockPauseReleasesLinkAndStartRecreatesIt() {
+        let clock = LYSVGADisplayLinkClock { _ in }
+
+        clock.start()
+        XCTAssertTrue(clock.hasScheduledDisplayLinkForTesting)
+
+        clock.pause()
+        XCTAssertFalse(clock.hasScheduledDisplayLinkForTesting)
+
+        clock.start()
+        XCTAssertTrue(clock.hasScheduledDisplayLinkForTesting)
+
+        clock.invalidate()
+        XCTAssertFalse(clock.hasScheduledDisplayLinkForTesting)
     }
 }
 

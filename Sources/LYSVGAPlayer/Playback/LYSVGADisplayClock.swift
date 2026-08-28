@@ -18,6 +18,10 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
         CACurrentMediaTime()
     }
 
+    var hasScheduledDisplayLinkForTesting: Bool {
+        displayLink != nil
+    }
+
     init(handler: @escaping (TimeInterval) -> Void) {
         self.handler = handler
     }
@@ -35,7 +39,8 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
     }
 
     func pause() {
-        displayLink?.isPaused = true
+        displayLink?.invalidate()
+        displayLink = nil
     }
 
     func invalidate() {
@@ -45,10 +50,6 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
 
     fileprivate func tick(at timestamp: TimeInterval) {
         handler(timestamp)
-    }
-
-    isolated deinit {
-        displayLink?.invalidate()
     }
 }
 
@@ -61,6 +62,10 @@ private final class LYSVGADisplayLinkProxy: NSObject {
     }
 
     @objc func tick(_ displayLink: CADisplayLink) {
-        owner?.tick(at: displayLink.timestamp)
+        guard let owner else {
+            displayLink.invalidate()
+            return
+        }
+        owner.tick(at: displayLink.timestamp)
     }
 }
