@@ -356,6 +356,7 @@ public final class LYSVGAPlayerView: UIView {
         clock = nil
         audioScheduler?.clear()
         audioScheduler = nil
+        renderer?.cancelImagePreheat()
         renderer?.rootLayer.removeFromSuperlayer()
         renderer = nil
         timeline = nil
@@ -367,6 +368,11 @@ public final class LYSVGAPlayerView: UIView {
         didReportFinish = false
         removeNotifications()
         _ = changeState(.idle, revision: revision)
+    }
+
+    @_spi(LYSVGABenchmark)
+    public func waitForImagePreheat() async {
+        await renderer?.waitForImagePreheat()
     }
 
     public func seek(toFrame frame: Int, andPlay: Bool = false) {
@@ -554,6 +560,7 @@ private extension LYSVGAPlayerView {
         } catch {
             if ownsCandidate {
                 candidate.audioScheduler.clear()
+                candidate.renderer.cancelImagePreheat()
                 candidate.renderer.rootLayer.removeFromSuperlayer()
             }
             throw finishLoadingFailure(
@@ -571,6 +578,7 @@ private extension LYSVGAPlayerView {
     ) -> Bool {
         clock?.pause()
         audioScheduler?.clear()
+        renderer?.cancelImagePreheat()
         renderer?.rootLayer.removeFromSuperlayer()
 
         candidate.renderer.applyDynamicContents(dynamicContents, contentsScale: layer.contentsScale)

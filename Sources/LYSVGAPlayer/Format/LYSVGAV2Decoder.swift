@@ -3,6 +3,18 @@ import SwiftProtobuf
 
 enum LYSVGAV2Decoder {
     static func decode(_ protobufData: Data, resourceDirectory: URL? = nil) throws -> LYSVGAVideo {
+        try decode(protobufData, resourceDirectory: resourceDirectory, resources: nil)
+    }
+
+    static func decode(_ protobufData: Data, resources: [String: Data]) throws -> LYSVGAVideo {
+        try decode(protobufData, resourceDirectory: nil, resources: resources)
+    }
+
+    private static func decode(
+        _ protobufData: Data,
+        resourceDirectory: URL?,
+        resources: [String: Data]?
+    ) throws -> LYSVGAVideo {
         try Task.checkCancellation()
         let movie: Com_Opensource_Svga_MovieEntity
         do {
@@ -17,7 +29,12 @@ enum LYSVGAV2Decoder {
         var audioData: [String: Data] = [:]
         for (key, value) in movie.images {
             try Task.checkCancellation()
-            let resolved = try resolve(value, key: key, resourceDirectory: resourceDirectory)
+            let resolved = try resolve(
+                value,
+                key: key,
+                resourceDirectory: resourceDirectory,
+                resources: resources
+            )
             if let audioKey = audioKeys.first(where: { resourceKey(key, matchesAudioKey: $0) }) {
                 audioData[audioKey] = resolved
             } else {
@@ -125,8 +142,13 @@ enum LYSVGAV2Decoder {
         }
     }
 
-    private static func resolve(_ value: Data, key: String, resourceDirectory: URL?) throws -> Data {
-        guard let resourceDirectory else {
+    private static func resolve(
+        _ value: Data,
+        key: String,
+        resourceDirectory: URL?,
+        resources: [String: Data]?
+    ) throws -> Data {
+        guard resourceDirectory != nil || resources != nil else {
             return value
         }
         guard let filename = String(data: value, encoding: .utf8),
@@ -134,10 +156,18 @@ enum LYSVGAV2Decoder {
               filename.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) == false }) else {
             return value
         }
+        if let resources {
+            return try LYSVGAResourceResolver.resolve(
+                filename: filename,
+                key: key,
+                resources: resources,
+                fallbackExtension: "png"
+            )
+        }
         return try LYSVGAResourceResolver.resolve(
             filename: filename,
             key: key,
-            directory: resourceDirectory,
+            directory: resourceDirectory!,
             fallbackExtension: "png"
         )
     }

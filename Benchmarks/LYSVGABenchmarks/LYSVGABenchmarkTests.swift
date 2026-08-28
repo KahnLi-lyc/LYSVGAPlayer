@@ -12,36 +12,103 @@ private struct BenchmarkResult: Codable, Sendable {
     let metrics: [String: Double]
 }
 
+private struct FirstPlayableMeasurement: Sendable {
+    let wallSeconds: Double
+    let cpuSeconds: Double
+    let decodeSeconds: Double
+    let prepareSeconds: Double
+    let layoutDisplaySeconds: Double
+    let renderSeconds: Double
+    let layerCount: Int
+}
+
 @MainActor
 final class LYSVGABenchmarkTests: XCTestCase {
-    func testV1Parsing() throws {
-        try benchmarkParsing(fixture: "rose_1.5.0", name: "parse.v1", iterations: 10)
+    func testBenchmarks() async throws {
+        try benchmarkV1Parsing()
+        try benchmarkV2Parsing()
+        try await benchmarkV2FirstPlayable()
+        try await benchmarkV2FirstFrame()
+        try await benchmarkContinuousRendering()
     }
 
-    func testV2Parsing() throws {
+    private func benchmarkV1Parsing() throws {
+        try benchmarkParsing(fixture: "matteBitmap_1.x", name: "parse.v1", iterations: 10)
+    }
+
+    private func benchmarkV2Parsing() throws {
         try benchmarkParsing(fixture: "rose_2.0.0", name: "parse.v2", iterations: 20)
     }
 
-    func testV2FirstFrame() async throws {
+    private func benchmarkV2FirstPlayable() async throws {
+        let selectedFixture = try playableFixture()
+        let size = CGSize(width: 256, height: 256)
+        let warmupIterations = 3
+        let measuredIterations = 30
+
+        for _ in 0..<warmupIterations {
+            _ = try await measureFirstPlayable(data: selectedFixture.data, size: size)
+        }
+
+        var measurements: [FirstPlayableMeasurement] = []
+        measurements.reserveCapacity(measuredIterations)
+        var peakResidentBytes = residentMemoryBytes()
+        for _ in 0..<measuredIterations {
+            measurements.append(try await measureFirstPlayable(data: selectedFixture.data, size: size))
+            peakResidentBytes = max(peakResidentBytes, residentMemoryBytes())
+        }
+
+        let wallMilliseconds = measurements.map { $0.wallSeconds * 1_000 }
+        print("LYSVGA_FIRST_PLAYABLE_ASSET \(selectedFixture.name)")
+        emit(BenchmarkResult(
+            name: "first-playable.v2",
+            iterations: measuredIterations,
+            metrics: [
+                "wallMilliseconds": median(wallMilliseconds),
+                "p95WallMilliseconds": percentile(wallMilliseconds, percentile: 0.95),
+                "cpuMilliseconds": median(measurements.map { $0.cpuSeconds * 1_000 }),
+                "decodeMilliseconds": median(measurements.map { $0.decodeSeconds * 1_000 }),
+                "prepareMilliseconds": median(measurements.map { $0.prepareSeconds * 1_000 }),
+                "layoutDisplayMilliseconds": median(measurements.map { $0.layoutDisplaySeconds * 1_000 }),
+                "renderMilliseconds": median(measurements.map { $0.renderSeconds * 1_000 }),
+                "layerCount": Double(measurements.last?.layerCount ?? 0),
+                "peakResidentBytes": Double(peakResidentBytes),
+            ]
+        ))
+    }
+
+    private func benchmarkV2FirstFrame() async throws {
         let data = try fixture("rose_2.0.0")
         let video = try LYSVGAFormatDecoder.decode(data)
         let size = CGSize(width: 256, height: 256)
         let iterations = 5
         var totalWallSeconds = 0.0
         var totalCPUSeconds = 0.0
+        var totalPrepareSeconds = 0.0
+        var totalLayoutDisplaySeconds = 0.0
+        var totalRenderSeconds = 0.0
         var peakResidentBytes = residentMemoryBytes()
+        var layerCount = 0
 
         for _ in 0..<iterations {
             let wallStart = ContinuousClock.now
             let cpuStart = processCPUSeconds()
             let renderer = LYSVGARenderer()
             try await renderer.prepare(video: video)
+            let prepareEnd = ContinuousClock.now
             renderer.layout(in: CGRect(origin: .zero, size: size), contentMode: .scaleAspectFit, clipsToBounds: true)
             renderer.display(frame: 0)
+            let layoutDisplayEnd = ContinuousClock.now
             _ = try render(renderer.rootLayer, size: size)
-            totalWallSeconds += seconds(from: wallStart.duration(to: .now))
+            let renderEnd = ContinuousClock.now
+            totalWallSeconds += seconds(from: wallStart.duration(to: renderEnd))
             totalCPUSeconds += processCPUSeconds() - cpuStart
+            totalPrepareSeconds += seconds(from: wallStart.duration(to: prepareEnd))
+            totalLayoutDisplaySeconds += seconds(from: prepareEnd.duration(to: layoutDisplayEnd))
+            totalRenderSeconds += seconds(from: layoutDisplayEnd.duration(to: renderEnd))
             peakResidentBytes = max(peakResidentBytes, residentMemoryBytes())
+            layerCount = recursiveLayerCount(renderer.rootLayer)
+            await renderer.waitForImagePreheat()
         }
 
         emit(BenchmarkResult(
@@ -50,16 +117,22 @@ final class LYSVGABenchmarkTests: XCTestCase {
             metrics: [
                 "wallMilliseconds": totalWallSeconds * 1_000 / Double(iterations),
                 "cpuMilliseconds": totalCPUSeconds * 1_000 / Double(iterations),
+                "prepareMilliseconds": totalPrepareSeconds * 1_000 / Double(iterations),
+                "layoutDisplayMilliseconds": totalLayoutDisplaySeconds * 1_000 / Double(iterations),
+                "renderMilliseconds": totalRenderSeconds * 1_000 / Double(iterations),
+                "layerCount": Double(layerCount),
                 "peakResidentBytes": Double(peakResidentBytes),
             ]
         ))
     }
 
-    func testContinuousRendering() async throws {
+    private func benchmarkContinuousRendering() async throws {
+        LYSVGAImagePreparer.resetCacheForTesting()
         let data = try fixture("rose_2.0.0")
         let video = try LYSVGAFormatDecoder.decode(data)
         let renderer = LYSVGARenderer()
         try await renderer.prepare(video: video)
+        await renderer.waitForImagePreheat()
         let size = CGSize(width: 256, height: 256)
         renderer.layout(in: CGRect(origin: .zero, size: size), contentMode: .scaleAspectFit, clipsToBounds: true)
         let context = try makeContext(size: size)
@@ -105,6 +178,38 @@ final class LYSVGABenchmarkTests: XCTestCase {
 
 @MainActor
 private extension LYSVGABenchmarkTests {
+    func measureFirstPlayable(data: Data, size: CGSize) async throws -> FirstPlayableMeasurement {
+        LYSVGAImagePreparer.resetCacheForTesting()
+        let wallStart = ContinuousClock.now
+        let cpuStart = processCPUSeconds()
+        let video = try LYSVGAFormatDecoder.decode(data)
+        let decodeEnd = ContinuousClock.now
+        let renderer = LYSVGARenderer()
+        try await renderer.prepare(video: video)
+        let prepareEnd = ContinuousClock.now
+        renderer.layout(
+            in: CGRect(origin: .zero, size: size),
+            contentMode: .scaleAspectFit,
+            clipsToBounds: true
+        )
+        renderer.display(frame: 0)
+        let layoutDisplayEnd = ContinuousClock.now
+        _ = try render(renderer.rootLayer, size: size)
+        let renderEnd = ContinuousClock.now
+
+        let measurement = FirstPlayableMeasurement(
+            wallSeconds: seconds(from: wallStart.duration(to: renderEnd)),
+            cpuSeconds: processCPUSeconds() - cpuStart,
+            decodeSeconds: seconds(from: wallStart.duration(to: decodeEnd)),
+            prepareSeconds: seconds(from: decodeEnd.duration(to: prepareEnd)),
+            layoutDisplaySeconds: seconds(from: prepareEnd.duration(to: layoutDisplayEnd)),
+            renderSeconds: seconds(from: layoutDisplayEnd.duration(to: renderEnd)),
+            layerCount: recursiveLayerCount(renderer.rootLayer)
+        )
+        await renderer.waitForImagePreheat()
+        return measurement
+    }
+
     func benchmarkParsing(fixture fixtureName: String, name: String, iterations: Int) throws {
         let data = try fixture(fixtureName)
         let wallStart = ContinuousClock.now
@@ -138,6 +243,17 @@ private extension LYSVGABenchmarkTests {
         return try Data(contentsOf: url, options: .mappedIfSafe)
     }
 
+    func playableFixture() throws -> (name: String, data: Data) {
+        if let url = Bundle.module.url(
+            forResource: "local-business",
+            withExtension: "svga",
+            subdirectory: "Fixtures"
+        ) {
+            return ("local-business.svga", try Data(contentsOf: url, options: .mappedIfSafe))
+        }
+        return ("rose_2.0.0.svga", try fixture("rose_2.0.0"))
+    }
+
     func render(_ layer: CALayer, size: CGSize) throws -> CGImage {
         let context = try makeContext(size: size)
         context.translateBy(x: 0, y: size.height)
@@ -161,6 +277,27 @@ private extension LYSVGABenchmarkTests {
             throw CocoaError(.coderInvalidValue)
         }
         return context
+    }
+
+    func recursiveLayerCount(_ layer: CALayer) -> Int {
+        1 + (layer.sublayers?.reduce(0) { $0 + recursiveLayerCount($1) } ?? 0)
+    }
+
+    func median(_ values: [Double]) -> Double {
+        let sortedValues = values.sorted()
+        guard sortedValues.isEmpty == false else { return 0 }
+        let middle = sortedValues.count / 2
+        if sortedValues.count.isMultiple(of: 2) {
+            return (sortedValues[middle - 1] + sortedValues[middle]) / 2
+        }
+        return sortedValues[middle]
+    }
+
+    func percentile(_ values: [Double], percentile: Double) -> Double {
+        let sortedValues = values.sorted()
+        guard sortedValues.isEmpty == false else { return 0 }
+        let rank = Int(ceil(percentile * Double(sortedValues.count))) - 1
+        return sortedValues[min(max(rank, 0), sortedValues.count - 1)]
     }
 
     func emit(_ result: BenchmarkResult) {

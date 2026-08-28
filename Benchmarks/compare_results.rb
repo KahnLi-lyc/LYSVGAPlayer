@@ -13,7 +13,7 @@ upstream = indexed_results(ARGV[1])
 checks = [
   ["parse.v1", "wallMilliseconds", 1.10, :ratio],
   ["parse.v2", "wallMilliseconds", 1.10, :ratio],
-  ["first-frame.v2", "wallMilliseconds", 1.10, :ratio],
+  ["first-playable.v2", "wallMilliseconds", 1.10, :ratio],
   ["continuous-render.v2", "cpuMilliseconds", 1.10, :ratio],
   ["continuous-render.v2", "peakResidentBytes", 1.15, :ratio],
   ["continuous-render.v2", "droppedFrameRate", 0.01, :absolute],
@@ -29,7 +29,7 @@ checks.each do |name, metric, limit, mode|
     candidate_value <= upstream_value + limit
   end
   failed ||= !passed
-  comparison = mode == :ratio ? format("%.3fx", candidate_value / upstream_value) : format("%+.4f", candidate_value - upstream_value)
+  comparison = mode == :ratio ? format("%.3fx", candidate_value.fdiv(upstream_value)) : format("%+.4f", candidate_value - upstream_value)
   puts format("%-26s %-24s candidate=%12.4f upstream=%12.4f delta=%9s %s", name, metric, candidate_value, upstream_value, comparison, passed ? "PASS" : "FAIL")
 end
 

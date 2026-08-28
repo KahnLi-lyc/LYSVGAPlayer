@@ -38,6 +38,28 @@ enum LYSVGAResourceResolver {
         throw LYSVGAError.missingResource("\(key) -> \(filename)")
     }
 
+    static func resolve(
+        filename: String,
+        key: String,
+        resources: [String: Data],
+        fallbackExtension: String? = nil
+    ) throws -> Data {
+        var filenames = [filename]
+        if let fallbackExtension, (filename as NSString).pathExtension.isEmpty {
+            filenames.append((filename as NSString).appendingPathExtension(fallbackExtension) ?? filename)
+        }
+        for candidateName in filenames {
+            guard isSafeRelativePath(candidateName) else {
+                throw LYSVGAError.unsafeArchiveEntry(candidateName)
+            }
+            let normalized = candidateName.replacingOccurrences(of: "\\", with: "/")
+            if let data = resources[normalized] {
+                return data
+            }
+        }
+        throw LYSVGAError.missingResource("\(key) -> \(filename)")
+    }
+
     static func isSafeRelativePath(_ path: String) -> Bool {
         guard path.isEmpty == false,
               (path as NSString).isAbsolutePath == false,

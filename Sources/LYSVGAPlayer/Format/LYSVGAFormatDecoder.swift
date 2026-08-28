@@ -7,6 +7,8 @@ enum LYSVGAFormat: Equatable {
 }
 
 enum LYSVGAFormatDecoder {
+    private static let maximumArchiveOutputSize = 256 * 1_024 * 1_024
+
     static func detect(_ data: Data) throws -> LYSVGAFormat {
         guard data.count >= 4 else {
             throw LYSVGAError.dataTooShort(actual: data.count, minimum: 4)
@@ -25,38 +27,34 @@ enum LYSVGAFormatDecoder {
     }
 
     private static func decodeArchive(_ data: Data) throws -> LYSVGAVideo {
-        let fileManager = FileManager.default
-        let temporaryDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("LYSVGA-\(UUID().uuidString)", isDirectory: true)
+        var resources: [String: Data] = [:]
         do {
-            try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        } catch {
-            throw LYSVGAError.fileFailure(error.localizedDescription)
-        }
-        defer { try? fileManager.removeItem(at: temporaryDirectory) }
-
-        let archiveURL = temporaryDirectory.appendingPathComponent("source.svga")
-        do {
-            try data.write(to: archiveURL, options: .atomic)
-            let archive = try Archive(url: archiveURL, accessMode: .read)
-            let entries = Array(archive)
-            let destinations = try entries.map { entry -> URL in
+            let archive = try Archive(data: data, accessMode: .read)
+            var totalOutputSize = 0
+            for entry in archive {
                 try Task.checkCancellation()
                 guard entry.type != .symlink else {
                     throw LYSVGAError.unsafeArchiveEntry(entry.path)
                 }
-                return try LYSVGAResourceResolver.containedURL(
-                    relativePath: entry.path,
-                    in: temporaryDirectory
-                )
-            }
-            for (entry, destination) in zip(entries, destinations) {
-                try Task.checkCancellation()
-                try fileManager.createDirectory(
-                    at: destination.deletingLastPathComponent(),
-                    withIntermediateDirectories: true
-                )
-                _ = try archive.extract(entry, to: destination)
+                guard LYSVGAResourceResolver.isSafeRelativePath(entry.path) else {
+                    throw LYSVGAError.unsafeArchiveEntry(entry.path)
+                }
+                guard entry.type == .file else { continue }
+                let entrySize = Int(entry.uncompressedSize)
+                guard entrySize <= maximumArchiveOutputSize - totalOutputSize else {
+                    throw LYSVGAError.zipFailure("The archive output exceeds the configured size limit.")
+                }
+                var extracted = Data()
+                extracted.reserveCapacity(entrySize)
+                _ = try archive.extract(entry) { chunk in
+                    try Task.checkCancellation()
+                    guard chunk.count <= maximumArchiveOutputSize - totalOutputSize - extracted.count else {
+                        throw LYSVGAError.zipFailure("The archive output exceeds the configured size limit.")
+                    }
+                    extracted.append(chunk)
+                }
+                totalOutputSize += extracted.count
+                resources[entry.path.replacingOccurrences(of: "\\", with: "/")] = extracted
             }
         } catch let error as LYSVGAError {
             throw error
@@ -65,16 +63,15 @@ enum LYSVGAFormatDecoder {
         }
 
         try Task.checkCancellation()
-        let jsonURL = temporaryDirectory.appendingPathComponent("movie.spec")
-        if fileManager.fileExists(atPath: jsonURL.path) {
-            return try LYSVGAV1Decoder.decode(Data(contentsOf: jsonURL), resourceDirectory: temporaryDirectory)
+        return try decodeArchiveResources(resources)
+    }
+
+    static func decodeArchiveResources(_ resources: [String: Data]) throws -> LYSVGAVideo {
+        if let protobuf = resources["movie.binary"] {
+            return try LYSVGAV2Decoder.decode(protobuf, resources: resources)
         }
-        let protobufURL = temporaryDirectory.appendingPathComponent("movie.binary")
-        if fileManager.fileExists(atPath: protobufURL.path) {
-            return try LYSVGAV2Decoder.decode(
-                Data(contentsOf: protobufURL),
-                resourceDirectory: temporaryDirectory
-            )
+        if let json = resources["movie.spec"] {
+            return try LYSVGAV1Decoder.decode(json, resources: resources)
         }
         throw LYSVGAError.invalidData("The archive contains neither movie.spec nor movie.binary.")
     }

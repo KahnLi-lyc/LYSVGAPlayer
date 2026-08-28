@@ -66,7 +66,7 @@ flowchart TD
     Disk -->|miss/invalid| Request
     Request --> Merge["Same-key Request Coalescing"]
     Merge --> Detect{"ZIP magic?"}
-    Detect -->|yes| ZIP["ZIP extraction + JSON"]
+    Detect -->|yes| ZIP["ZIP extraction + Protobuf preferred / JSON fallback"]
     Detect -->|no| Zlib["Validated streaming zlib"]
     Zlib --> Proto["Protobuf decode"]
     ZIP --> Model["LYSVGAVideo"]
@@ -85,7 +85,7 @@ flowchart TD
 - `.noCache`：不读取、不写入缓存。
 - 磁盘缓存通过大小、TTL、访问时间和元数据校验管理；解码取消不会删除仍然有效的数据。
 
-V2 zlib 使用流式解压并校验 CMF/FLG、字典标记、完整输入、Adler-32、尾随数据和 256 MiB 输出上限。ZIP 路径拒绝目录穿越和符号链接逃逸。
+ZIP 若同时包含 `movie.binary` 与 `movie.spec`，优先解析 Protobuf，只有缺少 binary 时才回退 JSON；这与上游 2.5.8 一致，也避免对同一动画重复走体积更大的 JSON 路径。V2 zlib 使用流式解压并校验 CMF/FLG、字典标记、完整输入、Adler-32、尾随数据和 256 MiB 输出上限。ZIP 路径拒绝目录穿越和符号链接逃逸。
 
 ## 并发边界
 
@@ -114,18 +114,17 @@ LYSVGAPlayer Target 使用 Swift 6 默认完整并发检查。对整个依赖图
 LYSVGARootLayer
 └── canvasLayer (canvas coordinate system and contentMode transform)
     ├── LYSVGASpriteLayer
-    │   ├── bitmapLayer
+    │   ├── contents: original or dynamic bitmap CGImage
     │   ├── LYSVGAVectorLayer
     │   │   └── fixed CAShapeLayer pool
-    │   ├── dynamicImageLayer
-    │   └── dynamicTextLayer
+    │   └── dynamicTextLayer (when configured)
     ├── LYSVGAMatteHostLayer
     │   ├── content sprite layers
     │   └── mask: reused matte sprite layer
     └── other sprite layers
 ```
 
-安装 Video 时，Renderer 先在后台准备位图，再一次性构建全画布图层树。播放期间不重建完整层级，每帧只更新：
+安装 Video 时，Renderer 先在后台通过 ImageIO 校验并创建不可变 `CGImage`，同时关闭立即像素缓存，以便尽快构建图层树并显示第 0 帧。图层树建立后立即启动 `.utility` 优先级的第二阶段任务，完整解码全部位图并升级进程内缓存；任务完成后回到 `MainActor` 原位替换 Sprite 和 matte 副本的 `contents`。替换不重建图层层级，也不会覆盖已安装的动态图片；播放器清空、替换视频或释放时会取消旧预热任务。这样既避免首画面前同步解码尚未可见的全部位图，也避免把解码成本永久转移到逐帧播放。准备结果使用有容量上限的进程内缓存复用。Sprite 自身承载位图 `contents`、布局、变换和 clipPath mask，不再额外创建空壳内容层；纯位图 Sprite 也不创建矢量层。播放期间不重建完整层级，每帧只更新：
 
 - `opacity`、layout、仿射变换；
 - 位图 `contents` 和 clipPath mask；
@@ -215,7 +214,7 @@ Audio Scheduler 为模型中的 audio cue 创建 `AVAudioPlayer`，按 `startFra
 - 单元测试覆盖格式、zlib 边界、缓存取消、SVG Path、matte、clipPath、keep-frame、全部 contentMode、时间线、生命周期、音频调度、动态内容、SwiftUI 和导出。
 - 像素快照覆盖 V1/V2 位图、矢量和 matte，固定为 128 x 128、scale 1、sRGB 并使用通道容差。
 - Demo 已在 iOS Simulator 运行 V1、V2、matte 和音频公开样例。
-- Benchmark 可输出解析、首帧、连续渲染、CPU、内存与帧预算 JSON。
+- Benchmark 可输出解析、端到端首个可见画面中位数/P95、暖路径首帧诊断、连续渲染、CPU、内存与帧预算 JSON。
 - 没有同机同配置的上游 2.5.8 JSON 前，不判定 110%/115% 性能门槛。
 - iOS 16 deployment target 可通过构建验证；真实 iOS 16 行为仍需 iOS 16 Runtime 或设备。
 - 生产兼容性最终需要业务方把未提交素材放入 `TestAssets/Local/` 完成验收。

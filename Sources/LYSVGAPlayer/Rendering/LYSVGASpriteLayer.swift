@@ -2,14 +2,14 @@ import QuartzCore
 
 @MainActor
 final class LYSVGASpriteLayer: CALayer {
-    let contentLayer = CALayer()
-    let vectorLayer: LYSVGAVectorLayer
+    var contentLayer: CALayer { self }
+    let vectorLayer: LYSVGAVectorLayer?
     let clipMaskLayer: CAShapeLayer?
 
     private let sprite: LYSVGASprite
-    private let originalImage: CGImage?
-    private let canvasBounds: CGRect
-    private let clipPaths: [CGPath?]
+    private var originalImage: CGImage?
+    private var clipPaths: [Int: CGPath] = [:]
+    private var attemptedClipPathFrames: Set<Int> = []
     private var dynamicContent: LYSVGADynamicContentEntry?
     private(set) var dynamicTextLayerForTesting: CATextLayer?
     private var dynamicContentsScale: CGFloat = 1
@@ -17,14 +17,13 @@ final class LYSVGASpriteLayer: CALayer {
     var imageKeyForDynamicContent: String { sprite.imageKey }
     var bitmapImageForTesting: CGImage? { dynamicContent?.image?.cgImage ?? originalImage }
 
-    init(sprite: LYSVGASprite, image: CGImage?, canvasSize: CGSize) {
+    init(
+        sprite: LYSVGASprite,
+        image: CGImage?,
+        canvasSize: CGSize
+    ) {
         self.sprite = sprite
         originalImage = image
-        canvasBounds = CGRect(origin: .zero, size: canvasSize)
-        clipPaths = sprite.frames.map { frame in
-            guard let clipPath = frame.clipPath else { return nil }
-            return try? LYSVGASVGPathParser.parse(clipPath)
-        }
 
         vectorLayer = LYSVGAVectorLayer(frames: sprite.frames, canvasSize: canvasSize)
         clipMaskLayer = sprite.frames.contains(where: { $0.clipPath != nil }) ? CAShapeLayer() : nil
@@ -32,24 +31,19 @@ final class LYSVGASpriteLayer: CALayer {
 
         anchorPoint = .zero
         position = .zero
-        bounds = canvasBounds
+        bounds = .zero
         isHidden = true
+        contents = image
+        contentsGravity = .resizeAspect
 
-        contentLayer.anchorPoint = .zero
-        contentLayer.position = .zero
-        contentLayer.bounds = .zero
-        if let image {
-            contentLayer.contents = image
-            contentLayer.contentsGravity = .resizeAspect
+        if let vectorLayer {
+            addSublayer(vectorLayer)
         }
-        addSublayer(contentLayer)
-
-        contentLayer.addSublayer(vectorLayer)
 
         if let clipMaskLayer {
             clipMaskLayer.anchorPoint = .zero
             clipMaskLayer.position = .zero
-            clipMaskLayer.bounds = canvasBounds
+            clipMaskLayer.bounds = .zero
             clipMaskLayer.fillColor = CGColor(gray: 1, alpha: 1)
         }
     }
@@ -78,12 +72,12 @@ final class LYSVGASpriteLayer: CALayer {
         contentLayer.position = layout.origin
         contentLayer.setAffineTransform(transform)
 
-        vectorLayer.position = .zero
-        vectorLayer.display(frame: index, contentSize: layout.size)
+        vectorLayer?.position = .zero
+        vectorLayer?.display(frame: index, contentSize: layout.size)
         contentLayer.contents = dynamicContent?.image?.cgImage ?? originalImage
         layoutDynamicText(in: contentLayer.bounds)
 
-        if let clipMaskLayer, clipPaths.indices.contains(index), let clipPath = clipPaths[index] {
+        if let clipMaskLayer, let clipPath = clipPath(for: index) {
             clipMaskLayer.bounds = CGRect(origin: .zero, size: layout.size)
             clipMaskLayer.position = .zero
             clipMaskLayer.path = clipPath
@@ -101,10 +95,29 @@ final class LYSVGASpriteLayer: CALayer {
         }
     }
 
+    private func clipPath(for index: Int) -> CGPath? {
+        if let cached = clipPaths[index] { return cached }
+        guard attemptedClipPathFrames.insert(index).inserted,
+              sprite.frames.indices.contains(index),
+              let value = sprite.frames[index].clipPath,
+              let path = try? LYSVGASVGPathParser.parse(value) else {
+            return nil
+        }
+        clipPaths[index] = path
+        return path
+    }
+
     func hide() {
         isHidden = true
         contentLayer.mask = nil
-        vectorLayer.hideAllShapes()
+        vectorLayer?.hideAllShapes()
+    }
+
+    func replaceOriginalImage(_ image: CGImage?) {
+        originalImage = image
+        if dynamicContent?.image == nil {
+            contentLayer.contents = image
+        }
     }
 
     func applyDynamicContent(_ content: LYSVGADynamicContentEntry?, contentsScale: CGFloat) {

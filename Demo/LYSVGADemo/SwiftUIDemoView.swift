@@ -52,6 +52,13 @@ struct SwiftUIDemoView: View {
                     ForEach(DemoSample.allCases) { sample in
                         Button(sample.title) { load(sample) }
                     }
+                    if DemoSupport.localAssets.isEmpty == false {
+                        Section("Local Assets") {
+                            ForEach(DemoSupport.localAssets) { asset in
+                                Button(asset.title) { startLoad(.file(asset.url)) }
+                            }
+                        }
+                    }
                 } label: {
                     Label("Bundle", systemImage: "shippingbox")
                 }
@@ -197,6 +204,7 @@ struct SwiftUIDemoView: View {
             defer { completion?() }
             errorMessage = nil
             do {
+                controller.repeatMode = loopsForever ? .forever : .once
                 try await controller.load(source, using: loader, autoplay: true)
             } catch let error as LYSVGAError where error == .cancelled {
                 return

@@ -35,6 +35,24 @@ final class LYSVGAFormatDecoderTests: XCTestCase {
         XCTAssertTrue(video.sprites.dropFirst().allSatisfy { $0.matteKey == "dengziqi.matte" })
     }
 
+    func testArchivePrefersProtobufWhenBothMovieFormatsExist() throws {
+        var protobufMovie = makeV2Movie()
+        protobufMovie.version = "protobuf"
+        let json = Data(#"""
+        {
+          "ver":"json",
+          "movie":{"viewBox":{"width":10,"height":10},"fps":20,"frames":1}
+        }
+        """#.utf8)
+
+        let video = try LYSVGAFormatDecoder.decodeArchiveResources([
+            "movie.spec": json,
+            "movie.binary": protobufMovie.serializedData(),
+        ])
+
+        XCTAssertEqual(video.version, "protobuf")
+    }
+
     func testV1StyleMapsLineDashArrayAndDefaultsToEmpty() throws {
         let json = Data(#"""
         {
@@ -54,6 +72,24 @@ final class LYSVGAFormatDecoderTests: XCTestCase {
         let video = try LYSVGAV1Decoder.decode(json, resourceDirectory: TestSupport.temporaryDirectory())
         XCTAssertEqual(video.sprites[0].frames[0].shapes[0].style.lineDash, [3, 2, 1])
         XCTAssertEqual(video.sprites[0].frames[0].shapes[1].style.lineDash, [])
+    }
+
+    func testV1InMemoryResourcesResolveExactAndPNGFallback() throws {
+        let json = Data(#"""
+        {
+          "ver":"1.1.0",
+          "movie":{"viewBox":{"width":10,"height":10},"fps":20,"frames":1},
+          "images":{"exact":"asset.bin","fallback":"image"},
+          "sprites":[]
+        }
+        """#.utf8)
+        let video = try LYSVGAV1Decoder.decode(json, resources: [
+            "asset.bin": Data("exact".utf8),
+            "image.png": Data("fallback".utf8),
+        ])
+
+        XCTAssertEqual(video.images["exact"], Data("exact".utf8))
+        XCTAssertEqual(video.images["fallback"], Data("fallback".utf8))
     }
 
     func testDecodesV2ProtobufFixtureIntoUnifiedModel() throws {
@@ -119,6 +155,18 @@ final class LYSVGAFormatDecoderTests: XCTestCase {
 
         let video = try LYSVGAV2Decoder.decode(movie.serializedData(), resourceDirectory: directory)
         XCTAssertEqual(video.images["image"], expected)
+    }
+
+    func testV2InMemoryExternalResourcesResolvePrintableFilename() throws {
+        var movie = makeV2Movie()
+        movie.images = ["image.png": Data("asset.png".utf8)]
+
+        let video = try LYSVGAV2Decoder.decode(
+            movie.serializedData(),
+            resources: ["asset.png": Data("in-memory".utf8)]
+        )
+
+        XCTAssertEqual(video.images["image"], Data("in-memory".utf8))
     }
 
     func testV2PrintableBytesRemainEmbeddedWithoutResourceDirectory() throws {

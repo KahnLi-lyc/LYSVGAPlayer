@@ -51,6 +51,45 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertPixel(transformedImage, x: 30, y: 20, rgba: (255, 0, 0, 255), tolerance: 3)
     }
 
+    func testBitmapOnlySpriteDoesNotCreateOrAttachVectorLayer() async throws {
+        let bitmap = try pngData(size: CGSize(width: 10, height: 10), color: .red)
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: try makeVideo(
+            width: 10,
+            height: 10,
+            images: ["bitmap.png": bitmap],
+            sprites: [LYSVGASprite(
+                imageKey: "bitmap",
+                frames: [frame(width: 10, height: 10), frame(width: 10, height: 10)]
+            )]
+        ))
+
+        let spriteLayer = try XCTUnwrap(renderer.spriteLayers.first)
+        XCTAssertTrue(spriteLayer.contentLayer === spriteLayer)
+        XCTAssertNil(spriteLayer.vectorLayer)
+        XCTAssertFalse(spriteLayer.contentLayer.sublayers?.contains(where: { $0 is LYSVGAVectorLayer }) ?? false)
+    }
+
+    func testBackgroundPreheatInstallsThePreferredCachedImage() async throws {
+        let imageData = try pngData(size: CGSize(width: 10, height: 10), color: .red)
+        let video = try makeVideo(
+            width: 10,
+            height: 10,
+            images: ["bitmap.png": imageData],
+            sprites: [LYSVGASprite(imageKey: "bitmap", frames: [frame(width: 10, height: 10)])]
+        )
+        let renderer = LYSVGARenderer()
+
+        try await renderer.prepare(video: video)
+        await renderer.waitForImagePreheat()
+        let preferredImages = try await LYSVGAImagePreparer.prepare(video)
+
+        let installed = try XCTUnwrap(renderer.spriteLayers.first?.bitmapImageForTesting)
+        let preferred = try XCTUnwrap(preferredImages["bitmap"]?.cgImage)
+        XCTAssertTrue(installed === preferred)
+    }
+
     func testBitmapAndVectorRenderTogetherAndKeepReusesShapePool() async throws {
         let bitmap = try pngData(size: CGSize(width: 20, height: 20), color: .red)
         let vector = LYSVGAShape(
@@ -90,6 +129,43 @@ final class LYSVGARendererTests: XCTestCase {
         image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 5, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
         XCTAssertPixel(image, x: 15, y: 10, rgba: (0, 255, 0, 255), tolerance: 3)
+    }
+
+    func testVectorDescriptorsCompileLazilyAndCacheResolvedFrames() async throws {
+        let first = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: 0, y: 0, width: 5, height: 5),
+                cornerRadius: 0
+            ))
+        )
+        let second = LYSVGAShape(
+            type: .rect(LYSVGAShapeRect(
+                rect: LYSVGARect(x: 5, y: 5, width: 5, height: 5),
+                cornerRadius: 0
+            ))
+        )
+        let renderer = LYSVGARenderer()
+        try await renderer.prepare(video: try makeVideo(
+            width: 10,
+            height: 10,
+            frames: 3,
+            sprites: [LYSVGASprite(imageKey: "lazy.vector", frames: [
+                frame(shapes: [first]),
+                frame(shapes: [LYSVGAShape(type: .keep)]),
+                frame(shapes: [second]),
+            ])]
+        ))
+        let vectorLayer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer)
+
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 0)
+        renderer.display(frame: 0)
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 1)
+        renderer.display(frame: 1)
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 1)
+        renderer.display(frame: 2)
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 2)
+        renderer.display(frame: 0)
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 2)
     }
 
     func testVectorDescriptorsMapGeometryStyleAndKeepUsesStableShapePool() async throws {
@@ -219,7 +295,6 @@ final class LYSVGARendererTests: XCTestCase {
         let sprite = try XCTUnwrap(renderer.spriteLayers.first)
         let mask = try XCTUnwrap(sprite.clipMaskLayer)
         XCTAssertTrue(sprite.contentLayer.mask === mask)
-        XCTAssertNil(sprite.mask)
         var image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 4, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
         XCTAssertPixel(image, x: 16, y: 10, rgba: (0, 0, 0, 0), tolerance: 3)
@@ -228,7 +303,6 @@ final class LYSVGARendererTests: XCTestCase {
 
         XCTAssertTrue(sprite.clipMaskLayer === mask)
         XCTAssertTrue(sprite.contentLayer.mask === mask)
-        XCTAssertNil(sprite.mask)
         image = render(renderer.rootLayer, size: CGSize(width: 20, height: 20))
         XCTAssertPixel(image, x: 4, y: 10, rgba: (0, 0, 0, 0), tolerance: 3)
         XCTAssertPixel(image, x: 16, y: 10, rgba: (255, 0, 0, 255), tolerance: 3)
@@ -265,7 +339,6 @@ final class LYSVGARendererTests: XCTestCase {
         let spriteLayer = try XCTUnwrap(renderer.spriteLayers.first)
         let mask = try XCTUnwrap(spriteLayer.clipMaskLayer)
         XCTAssertTrue(spriteLayer.contentLayer.mask === mask)
-        XCTAssertNil(spriteLayer.mask)
         XCTAssertEqual(mask.bounds, CGRect(x: 0, y: 0, width: 20, height: 10))
         XCTAssertEqual(mask.position, .zero)
         XCTAssertEqual(mask.frame, CGRect(x: 0, y: 0, width: 20, height: 10))
@@ -436,7 +509,8 @@ final class LYSVGARendererTests: XCTestCase {
         try await renderer.prepare(video: video)
         renderer.display(frame: 0)
 
-        let layer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer.shapeLayers.first)
+        let vectorLayer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer)
+        let layer = try XCTUnwrap(vectorLayer.shapeLayers.first)
         XCTAssertNil(layer.fillColor)
         XCTAssertNil(layer.strokeColor)
         XCTAssertEqual(layer.lineWidth, 0)
@@ -520,7 +594,7 @@ final class LYSVGARendererTests: XCTestCase {
         ))
         renderer.display(frame: 0)
 
-        XCTAssertTrue(renderer.spriteLayers[0].vectorLayer.shapeLayers.isEmpty)
+        XCTAssertNil(renderer.spriteLayers[0].vectorLayer)
         XCTAssertPixel(
             render(renderer.rootLayer, size: CGSize(width: 10, height: 10)),
             x: 5,

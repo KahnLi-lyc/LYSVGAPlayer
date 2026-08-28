@@ -14,6 +14,8 @@ final class LYSVGARenderer {
     private var missingMatteSpriteIndices: Set<Int> = []
     private var additionalMatteLayers: [LYSVGASpriteLayer] = []
     private var isDisplayingFrame = false
+    private var imagePreheatTask: Task<Void, Never>?
+    private var imagePreheatRevision: UInt = 0
 
     init() {
         rootLayer.anchorPoint = .zero
@@ -22,9 +24,25 @@ final class LYSVGARenderer {
         rootLayer.addSublayer(canvasLayer)
     }
 
+    deinit {
+        imagePreheatTask?.cancel()
+    }
+
     func prepare(video: LYSVGAVideo) async throws {
+        cancelImagePreheat()
         let images = try await LYSVGAImagePreparer.prepare(video)
         buildLayerTree(video: video, images: images)
+        startImagePreheat(for: video)
+    }
+
+    func cancelImagePreheat() {
+        imagePreheatRevision &+= 1
+        imagePreheatTask?.cancel()
+        imagePreheatTask = nil
+    }
+
+    func waitForImagePreheat() async {
+        await imagePreheatTask?.value
     }
 
     func layout(in bounds: CGRect, contentMode: UIView.ContentMode, clipsToBounds: Bool) {
@@ -131,8 +149,12 @@ final class LYSVGARenderer {
             let canvasSize = CGSize(width: video.canvasSize.width, height: video.canvasSize.height)
             canvasLayer.bounds = CGRect(origin: .zero, size: canvasSize)
             spriteLayers = video.sprites.map { sprite in
-                let image = images[LYSVGAResourceKey.canonicalize(sprite.imageKey)]?.cgImage
-                return LYSVGASpriteLayer(sprite: sprite, image: image, canvasSize: canvasSize)
+                let key = LYSVGAResourceKey.canonicalize(sprite.imageKey)
+                return LYSVGASpriteLayer(
+                    sprite: sprite,
+                    image: images[key]?.cgImage,
+                    canvasSize: canvasSize
+                )
             }
 
             let matteResolution = resolveMattes(in: video.sprites)
@@ -194,6 +216,32 @@ final class LYSVGARenderer {
                 contentMode: .center,
                 clipsToBounds: false
             )
+        }
+    }
+
+    private func startImagePreheat(for video: LYSVGAVideo) {
+        imagePreheatRevision &+= 1
+        let revision = imagePreheatRevision
+        imagePreheatTask = Task(priority: .utility) { [weak self] in
+            do {
+                let images = try await LYSVGAImagePreparer.prepareEagerly(video)
+                try Task.checkCancellation()
+                guard let self, imagePreheatRevision == revision else { return }
+                installPreheatedImages(images)
+                imagePreheatTask = nil
+            } catch {
+                guard let self, imagePreheatRevision == revision else { return }
+                imagePreheatTask = nil
+            }
+        }
+    }
+
+    private func installPreheatedImages(_ images: [String: LYSVGAPreparedImage]) {
+        withoutAnimations {
+            for layer in spriteLayers + additionalMatteLayers {
+                let key = LYSVGAResourceKey.canonicalize(layer.imageKeyForDynamicContent)
+                layer.replaceOriginalImage(images[key]?.cgImage)
+            }
         }
     }
 

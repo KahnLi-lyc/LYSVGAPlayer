@@ -23,7 +23,32 @@ enum DemoSample: String, CaseIterable, Identifiable {
     }
 }
 
+struct DemoLocalAsset: Identifiable {
+    let url: URL
+
+    var id: String { url.path }
+    var title: String { url.deletingPathExtension().lastPathComponent }
+}
+
 enum DemoSupport {
+    static var localAssets: [DemoLocalAsset] {
+        guard let documentsURL = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first,
+            let urls = try? FileManager.default.contentsOfDirectory(
+                at: documentsURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+            return []
+        }
+        return urls
+            .filter { $0.pathExtension.lowercased() == "svga" }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            .map(DemoLocalAsset.init)
+    }
+
     static func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()

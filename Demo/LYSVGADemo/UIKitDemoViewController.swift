@@ -122,9 +122,16 @@ final class UIKitDemoViewController: UIViewController {
     private func sampleButton() -> UIButton {
         let button = UIButton(type: .system)
         button.configuration = titleConfiguration("Bundle", systemImage: "shippingbox")
-        button.menu = UIMenu(children: DemoSample.allCases.map { sample in
+        var menuChildren: [UIMenuElement] = DemoSample.allCases.map { sample in
             UIAction(title: sample.title) { [weak self] _ in self?.load(sample) }
-        })
+        }
+        let localActions = DemoSupport.localAssets.map { asset in
+            UIAction(title: asset.title) { [weak self] _ in self?.startLoad(.file(asset.url)) }
+        }
+        if localActions.isEmpty == false {
+            menuChildren.append(UIMenu(title: "Local Assets", children: localActions))
+        }
+        button.menu = UIMenu(children: menuChildren)
         button.showsMenuAsPrimaryAction = true
         return button
     }
@@ -246,6 +253,7 @@ final class UIKitDemoViewController: UIViewController {
         loadTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
+                playerView.repeatMode = loopSwitch.isOn ? .forever : .once
                 try await playerView.load(source, using: loader, autoplay: true)
             } catch let error as LYSVGAError where error == .cancelled {
                 return
@@ -265,6 +273,7 @@ final class UIKitDemoViewController: UIViewController {
         muteButton.configuration?.image = UIImage(
             systemName: playerView.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
         )
+        muteButton.accessibilityLabel = playerView.isMuted ? "Unmute" : "Mute"
     }
 }
 

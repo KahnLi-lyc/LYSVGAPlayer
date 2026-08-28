@@ -2,6 +2,31 @@ import Foundation
 
 enum LYSVGAV1Decoder {
     static func decode(_ data: Data, resourceDirectory: URL) throws -> LYSVGAVideo {
+        try decode(data) { filename, key, fallbackExtension in
+            try LYSVGAResourceResolver.resolve(
+                filename: filename,
+                key: key,
+                directory: resourceDirectory,
+                fallbackExtension: fallbackExtension
+            )
+        }
+    }
+
+    static func decode(_ data: Data, resources: [String: Data]) throws -> LYSVGAVideo {
+        try decode(data) { filename, key, fallbackExtension in
+            try LYSVGAResourceResolver.resolve(
+                filename: filename,
+                key: key,
+                resources: resources,
+                fallbackExtension: fallbackExtension
+            )
+        }
+    }
+
+    private static func decode(
+        _ data: Data,
+        resolveResource: (_ filename: String, _ key: String, _ fallbackExtension: String?) throws -> Data
+    ) throws -> LYSVGAVideo {
         let spec: V1Spec
         do {
             spec = try JSONDecoder().decode(V1Spec.self, from: data)
@@ -13,26 +38,20 @@ enum LYSVGAV1Decoder {
         var images: [String: Data] = [:]
         for (key, filename) in spec.images {
             try Task.checkCancellation()
-            images[LYSVGAResourceKey.canonicalize(key)] = try LYSVGAResourceResolver.resolve(
-                filename: filename,
-                key: key,
-                directory: resourceDirectory,
-                fallbackExtension: "png"
-            )
+            images[LYSVGAResourceKey.canonicalize(key)] = try resolveResource(filename, key, "png")
         }
 
         var audioData: [String: Data] = [:]
         for audio in spec.audios where audio.audioKey.isEmpty == false {
             let candidates = [audio.audioKey, (audio.audioKey as NSString).appendingPathExtension("mp3")]
                 .compactMap { $0 }
-            if let filename = candidates.first(where: {
-                FileManager.default.fileExists(atPath: resourceDirectory.appendingPathComponent($0).path)
-            }) {
-                audioData[audio.audioKey] = try LYSVGAResourceResolver.resolve(
-                    filename: filename,
-                    key: audio.audioKey,
-                    directory: resourceDirectory
-                )
+            for filename in candidates {
+                do {
+                    audioData[audio.audioKey] = try resolveResource(filename, audio.audioKey, nil)
+                    break
+                } catch LYSVGAError.missingResource(_) {
+                    continue
+                }
             }
         }
 

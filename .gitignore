@@ -19,6 +19,7 @@
 /Examples/**/DerivedData/
 /Examples/**/Local/
 /Benchmarks/Results/
+/Benchmarks/LYSVGABenchmarks/Fixtures/local-business.svga
 
 # macOS
 .DS_Store
