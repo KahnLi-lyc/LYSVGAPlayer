@@ -116,6 +116,14 @@ Package deployment target 为 iOS 16，代码不依赖 iOS 17 Observation。较�
 
 Swift Package 的 XCTest Benchmark 用于 Simulator；真机通过 Demo 内置的 app-hosted Runner 执行。Runner 由启动环境变量 `LYSVGA_DEVICE_BENCHMARK=1` 开启，默认读取应用 Documents 中的 `head_wear_vip9.svga`，完成后写出 `lysvga-device-benchmark.json` 并退出。V1 解析项固定使用只含 `movie.spec` 的 `matteBitmap_1.x.svga`，避免把双格式资源误标为 V1。
 
+### 多实例头饰列表
+
+Demo 的 `List` 页使用 UIKit `UITableView` 生成 200 个好友 Cell。页面优先循环使用 Documents 中最多 12 个私有 SVGA；缺少私有文件时使用公开 V1、V2 和 matte 样例。每个可见 Cell 拥有独立播放器，但相同素材只解析一次；离屏暂停、复用时取消准备并清空，所有实例移除音频轨道并静音播放。
+
+`Single` 用于观察同一素材的跨实例缓存，`Mixed` 用于模拟多个用户的不同头饰。页面实时显示 FPS、P95 帧间隔、卡顿率、可见播放器数和常驻内存。工具栏播放按钮执行 3 秒预热和 30 秒固定负载自动往返滚动，结果写入 Documents 的 `headwear-list-benchmark.json` 并输出 `LYSVGA_HEADWEAR_LIST_RESULT` 日志。
+
+iPhone 8 Plus / iOS 16 的初始观察门槛为平均 FPS 不低于 55、P95 不高于 33.4 ms、卡顿率不高于 5%。不同业务素材超出门槛时记录为性能基线，不应仅凭一次肉眼观察判定框架回退。连续完成三次往返后，第二次与第三次峰值内存相对增长不应超过 15%。
+
 ```bash
 ruby Benchmarks/compare_results.rb \
   Benchmarks/Results/lysvga.json \

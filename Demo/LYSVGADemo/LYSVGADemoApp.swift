@@ -20,6 +20,9 @@ struct LYSVGADemoApp: App {
 
                     UIKitDemoContainer()
                         .tabItem { Label("UIKit", systemImage: "rectangle.on.rectangle") }
+
+                    HeadwearListDemoContainer()
+                        .tabItem { Label("List", systemImage: "person.3.fill") }
                 }
             }
         }
@@ -29,6 +32,14 @@ struct LYSVGADemoApp: App {
 private struct UIKitDemoContainer: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UINavigationController {
         UINavigationController(rootViewController: UIKitDemoViewController())
+    }
+
+    func updateUIViewController(_ controller: UINavigationController, context: Context) {}
+}
+
+private struct HeadwearListDemoContainer: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UINavigationController {
+        UINavigationController(rootViewController: HeadwearListViewController())
     }
 
     func updateUIViewController(_ controller: UINavigationController, context: Context) {}

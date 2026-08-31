@@ -20,6 +20,7 @@
 /Examples/**/Local/
 /Benchmarks/Results/
 /Benchmarks/LYSVGABenchmarks/Fixtures/local-business.svga
+**/headwear-list-benchmark.json
 
 # macOS
 .DS_Store
