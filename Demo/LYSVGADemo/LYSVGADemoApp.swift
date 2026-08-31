@@ -11,7 +11,6 @@ struct LYSVGADemoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            //Testing
             if ProcessInfo.processInfo.environment["LYSVGA_DEVICE_BENCHMARK"] == "1" {
                 DeviceBenchmarkView()
             } else {
