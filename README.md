@@ -147,7 +147,7 @@ let files = try await exporter.exportPNGSequence(frames: 0...20, to: outputDirec
 
 ## Demo、测试与性能
 
-- [Demo](Demo/README.md)：可运行的 UIKit/SwiftUI 双页面示例，包含 V1、V2、matte 与音频公开素材。
+- [Demo](Demo/README.md)：可运行的 UIKit、SwiftUI 与多实例头饰列表示例，包含 V1、V2、matte 与音频公开素材。
 - [测试协作](docs/TESTING.md)：自动测试、模拟器、真机与业务素材验收边界。
 - [Benchmark](Benchmarks/README.md)：解析、首帧、连续渲染、CPU、内存和帧预算测量及上游对照脚本。
 - [架构](docs/ARCHITECTURE.md)：资源管线、并发边界、图层树、播放和清理机制。

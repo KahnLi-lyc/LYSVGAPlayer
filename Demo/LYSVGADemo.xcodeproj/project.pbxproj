@@ -11,6 +11,10 @@
 		27C6D4C7CBC0447033F7C148 /* rose_1.5.0.svga in Resources */ = {isa = PBXBuildFile; fileRef = D59836FAA3A8EEBDA0D1BBFB /* rose_1.5.0.svga */; };
 		32A1F7C9233A42AB9E8128B8 /* matteBitmap_1.x.svga in Resources */ = {isa = PBXBuildFile; fileRef = 189315FE8DA148F59DA6A20F /* matteBitmap_1.x.svga */; };
 		439B7B6081C77EEA7F40C2E2 /* LYSVGADemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C50E5C4BF9ED012A1DD7DC /* LYSVGADemoApp.swift */; };
+		4A1000010000000000000001 /* HeadwearListModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1000010000000000000001 /* HeadwearListModels.swift */; };
+		4A1000020000000000000002 /* HeadwearListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1000020000000000000002 /* HeadwearListCell.swift */; };
+		4A1000030000000000000003 /* HeadwearListPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1000030000000000000003 /* HeadwearListPerformanceMonitor.swift */; };
+		4A1000040000000000000004 /* HeadwearListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1000040000000000000004 /* HeadwearListViewController.swift */; };
 		46215B453BAA7CA8EE42EBED /* SwiftUIDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */; };
 		958ACDFB182F514FB83BD892 /* matteBitmap.svga in Resources */ = {isa = PBXBuildFile; fileRef = F44F46A2005123C2E9CA31A2 /* matteBitmap.svga */; };
 		C599DB4408ACF5E323A0CF0D /* rose_2.0.0.svga in Resources */ = {isa = PBXBuildFile; fileRef = 7C1CE5806F7193192EC110AA /* rose_2.0.0.svga */; };
@@ -25,6 +29,10 @@
 		1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SwiftUIDemoView.swift; sourceTree = "<group>"; };
 		189315FE8DA148F59DA6A20F /* matteBitmap_1.x.svga */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = matteBitmap_1.x.svga; sourceTree = "<group>"; };
 		1DD6DDF80DCC3E1E9160AA9C /* DemoSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DemoSupport.swift; sourceTree = "<group>"; };
+		4B1000010000000000000001 /* HeadwearListModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeadwearListModels.swift; sourceTree = "<group>"; };
+		4B1000020000000000000002 /* HeadwearListCell.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeadwearListCell.swift; sourceTree = "<group>"; };
+		4B1000030000000000000003 /* HeadwearListPerformanceMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeadwearListPerformanceMonitor.swift; sourceTree = "<group>"; };
+		4B1000040000000000000004 /* HeadwearListViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeadwearListViewController.swift; sourceTree = "<group>"; };
 		527CAB9FD8AE308CD6A01B99 /* LYSVGADemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LYSVGADemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C1CE5806F7193192EC110AA /* rose_2.0.0.svga */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = rose_2.0.0.svga; sourceTree = "<group>"; };
 		AA0ADFB8EA7A1154220886FC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -51,6 +59,10 @@
 			isa = PBXGroup;
 			children = (
 				1DD6DDF80DCC3E1E9160AA9C /* DemoSupport.swift */,
+				4B1000020000000000000002 /* HeadwearListCell.swift */,
+				4B1000010000000000000001 /* HeadwearListModels.swift */,
+				4B1000030000000000000003 /* HeadwearListPerformanceMonitor.swift */,
+				4B1000040000000000000004 /* HeadwearListViewController.swift */,
 				F6C50E5C4BF9ED012A1DD7DC /* LYSVGADemoApp.swift */,
 				1490936AD21FECC0D1DB7EF5 /* SwiftUIDemoView.swift */,
 				BDE267142DFF26E14D6BCBB6 /* UIKitDemoViewController.swift */,
@@ -178,6 +190,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				E56BC6FADE38271EFC1F82FB /* DemoSupport.swift in Sources */,
+				4A1000020000000000000002 /* HeadwearListCell.swift in Sources */,
+				4A1000010000000000000001 /* HeadwearListModels.swift in Sources */,
+				4A1000030000000000000003 /* HeadwearListPerformanceMonitor.swift in Sources */,
+				4A1000040000000000000004 /* HeadwearListViewController.swift in Sources */,
 				439B7B6081C77EEA7F40C2E2 /* LYSVGADemoApp.swift in Sources */,
 				46215B453BAA7CA8EE42EBED /* SwiftUIDemoView.swift in Sources */,
 				DA5BA2F2A37D5C535EF859F9 /* UIKitDemoViewController.swift in Sources */,
