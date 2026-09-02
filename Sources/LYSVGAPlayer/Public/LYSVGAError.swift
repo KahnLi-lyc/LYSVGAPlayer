@@ -10,6 +10,7 @@ public enum LYSVGAError: Error, Equatable, Sendable {
     case jsonFailure(String)
     case protobufFailure(String)
     case missingResource(String)
+    case invalidRequest(String)
     case networkFailure(String)
     case httpStatus(Int)
     case fileFailure(String)
@@ -41,6 +42,7 @@ extension LYSVGAError: LocalizedError {
         case let .jsonFailure(reason): "Unable to decode SVGA JSON: \(reason)"
         case let .protobufFailure(reason): "Unable to decode SVGA Protobuf: \(reason)"
         case let .missingResource(key): "The SVGA resource is missing: \(key)"
+        case let .invalidRequest(reason): "The SVGA request is invalid: \(reason)"
         case let .networkFailure(reason): "Unable to load SVGA data: \(reason)"
         case let .httpStatus(status): "The SVGA request returned HTTP status \(status)."
         case let .fileFailure(reason): "Unable to read the SVGA file: \(reason)"

@@ -39,6 +39,89 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         XCTAssertEqual(URLProtocolStub.startCount, 1)
     }
 
+    func testCustomRequestPreservesMethodHeadersBodyTimeoutAndNetworkPolicy() async throws {
+        URLProtocolStub.configure(
+            statusCode: 200,
+            data: try TestSupport.fixture("matteRect"),
+            delay: 0
+        )
+        let (loader, session) = makeLoader()
+        defer { session.invalidateAndCancel() }
+
+        var request = URLRequest(url: testURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer test-token", forHTTPHeaderField: "Authorization")
+        request.httpBody = Data("payload".utf8)
+        request.timeoutInterval = 12
+        request.allowsCellularAccess = false
+
+        _ = try await loader.load(.request(request), cachePolicy: .noCache)
+
+        let received = try XCTUnwrap(URLProtocolStub.receivedRequests.first)
+        XCTAssertEqual(received.httpMethod, "POST")
+        XCTAssertEqual(received.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+        XCTAssertEqual(URLProtocolStub.receivedBodies.first, Data("payload".utf8))
+        XCTAssertEqual(received.timeoutInterval, 12)
+        XCTAssertFalse(received.allowsCellularAccess)
+    }
+
+    func testCustomRequestsCoalesceOnlyWhenTheirCacheIdentityMatches() async throws {
+        URLProtocolStub.configure(
+            statusCode: 200,
+            data: try TestSupport.fixture("matteRect"),
+            delay: 0.1
+        )
+        let (loader, session) = makeLoader()
+        defer { session.invalidateAndCancel() }
+        let url = testURL
+
+        async let first = loader.load(
+            .request(Self.makeVariantRequest(url: url, variant: "one")),
+            cachePolicy: .noCache
+        )
+        async let duplicate = loader.load(
+            .request(Self.makeVariantRequest(url: url, variant: "one")),
+            cachePolicy: .noCache
+        )
+        _ = try await (first, duplicate)
+        XCTAssertEqual(URLProtocolStub.startCount, 1)
+
+        async let original = loader.load(
+            .request(Self.makeVariantRequest(url: url, variant: "one")),
+            cachePolicy: .noCache
+        )
+        async let different = loader.load(
+            .request(Self.makeVariantRequest(url: url, variant: "two")),
+            cachePolicy: .noCache
+        )
+        _ = try await (original, different)
+        XCTAssertEqual(URLProtocolStub.startCount, 3)
+    }
+
+    func testCustomRequestRejectsBodyStreamBeforeStartingNetworkLoad() async throws {
+        URLProtocolStub.configure(
+            statusCode: 200,
+            data: try TestSupport.fixture("matteRect"),
+            delay: 0
+        )
+        let (loader, session) = makeLoader()
+        defer { session.invalidateAndCancel() }
+
+        var request = URLRequest(url: testURL)
+        request.httpBodyStream = InputStream(data: Data("stream".utf8))
+
+        do {
+            _ = try await loader.load(.request(request), cachePolicy: .noCache)
+            XCTFail("Expected a streamed request body to be rejected.")
+        } catch {
+            XCTAssertEqual(
+                error as? LYSVGAError,
+                .invalidRequest("URLRequest.httpBodyStream is unsupported because it cannot be replayed safely.")
+            )
+        }
+        XCTAssertEqual(URLProtocolStub.startCount, 0)
+    }
+
     func testCancellingOneWaiterKeepsSharedRequestAlive() async throws {
         URLProtocolStub.configure(
             statusCode: 200,
@@ -226,6 +309,12 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
         URL(string: "https://example.com/asset.svga")!
     }
 
+    private static func makeVariantRequest(url: URL, variant: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue(variant, forHTTPHeaderField: "X-Variant")
+        return request
+    }
+
     private func makeLoader(directory: URL = TestSupport.temporaryDirectory()) -> (LYSVGAAssetLoader, URLSession) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
@@ -325,6 +414,8 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) private static var configuration = Configuration(statusCode: 200, data: Data(), delay: 0)
     nonisolated(unsafe) private static var starts = 0
     nonisolated(unsafe) private static var stops = 0
+    nonisolated(unsafe) private static var received: [URLRequest] = []
+    nonisolated(unsafe) private static var bodies: [Data?] = []
 
     private var workItem: DispatchWorkItem?
     private let stateLock = NSLock()
@@ -342,6 +433,14 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
         return stops
     }
 
+    static var receivedRequests: [URLRequest] {
+        lock.withLock { received }
+    }
+
+    static var receivedBodies: [Data?] {
+        lock.withLock { bodies }
+    }
+
     static func configure(
         statusCode: Int,
         data: Data,
@@ -353,6 +452,8 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
         if resetCounts {
             starts = 0
             stops = 0
+            received = []
+            bodies = []
         }
         lock.unlock()
     }
@@ -366,9 +467,12 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        let body = Self.bodyData(from: request)
         Self.lock.lock()
         let configuration = Self.configuration
         Self.starts += 1
+        Self.received.append(request)
+        Self.bodies.append(body)
         Self.lock.unlock()
 
         let item = DispatchWorkItem { [weak self] in
@@ -400,5 +504,20 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
             Self.stops += 1
             Self.lock.unlock()
         }
+    }
+
+    private static func bodyData(from request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1_024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 }

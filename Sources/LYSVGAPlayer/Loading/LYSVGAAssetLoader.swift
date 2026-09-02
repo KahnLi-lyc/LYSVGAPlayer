@@ -4,6 +4,8 @@ typealias LYSVGAAssetReader = @Sendable (LYSVGASource, URLSession) async throws 
 typealias LYSVGAAssetDecoder = @Sendable (Data) throws -> LYSVGAVideo
 
 public actor LYSVGAAssetLoader {
+    public static let shared = LYSVGAAssetLoader()
+
     private struct LoadedAsset: Sendable {
         let data: Data
         let video: LYSVGAVideo
@@ -212,22 +214,33 @@ public actor LYSVGAAssetLoader {
         case let .remote(url):
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
-            do {
-                let (data, response) = try await session.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw LYSVGAError.networkFailure("The response is not HTTP.")
-                }
-                guard (200 ... 299).contains(httpResponse.statusCode) else {
-                    throw LYSVGAError.httpStatus(httpResponse.statusCode)
-                }
-                return data
-            } catch let error as LYSVGAError {
-                throw error
-            } catch let error as URLError where error.code == .cancelled {
-                throw LYSVGAError.cancelled
-            } catch {
-                throw LYSVGAError.networkFailure(error.localizedDescription)
+            return try await read(request, session: session)
+        case let .request(request):
+            guard request.httpBodyStream == nil else {
+                throw LYSVGAError.invalidRequest(
+                    "URLRequest.httpBodyStream is unsupported because it cannot be replayed safely."
+                )
             }
+            return try await read(request, session: session)
+        }
+    }
+
+    private static func read(_ request: URLRequest, session: URLSession) async throws -> Data {
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw LYSVGAError.networkFailure("The response is not HTTP.")
+            }
+            guard (200 ... 299).contains(httpResponse.statusCode) else {
+                throw LYSVGAError.httpStatus(httpResponse.statusCode)
+            }
+            return data
+        } catch let error as LYSVGAError {
+            throw error
+        } catch let error as URLError where error.code == .cancelled {
+            throw LYSVGAError.cancelled
+        } catch {
+            throw LYSVGAError.networkFailure(error.localizedDescription)
         }
     }
 }
