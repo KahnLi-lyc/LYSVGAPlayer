@@ -15,6 +15,7 @@ final class LYSVGASwiftUITests: XCTestCase {
         controller.allowsFrameSkipping = false
         controller.isMuted = true
         controller.audioVolume = -1
+        controller.displayLinkRunLoopMode = .default
 
         XCTAssertTrue(controller.playerView === player)
         XCTAssertEqual(player.repeatMode, .count(2))
@@ -23,6 +24,7 @@ final class LYSVGASwiftUITests: XCTestCase {
         XCTAssertFalse(player.allowsFrameSkipping)
         XCTAssertTrue(player.isMuted)
         XCTAssertEqual(player.audioVolume, 0)
+        XCTAssertEqual(player.displayLinkRunLoopMode, .default)
 
         try await controller.setVideo(try video())
         XCTAssertEqual(controller.playbackState, .ready)

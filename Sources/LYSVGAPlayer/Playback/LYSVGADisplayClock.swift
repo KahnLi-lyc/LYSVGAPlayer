@@ -1,8 +1,10 @@
+import Foundation
 import QuartzCore
 
 @MainActor
 protocol LYSVGADisplayClock: AnyObject {
     var timestamp: TimeInterval { get }
+    var runLoopMode: RunLoop.Mode { get set }
 
     func start()
     func pause()
@@ -14,6 +16,15 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
     private let handler: (TimeInterval) -> Void
     private var displayLink: CADisplayLink?
 
+    var runLoopMode: RunLoop.Mode = .common {
+        didSet {
+            guard runLoopMode != oldValue, let displayLink else { return }
+            displayLink.remove(from: .main, forMode: oldValue)
+            displayLink.add(to: .main, forMode: runLoopMode)
+            scheduledRunLoopModeForTesting = runLoopMode
+        }
+    }
+
     var timestamp: TimeInterval {
         CACurrentMediaTime()
     }
@@ -21,6 +32,8 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
     var hasScheduledDisplayLinkForTesting: Bool {
         displayLink != nil
     }
+
+    private(set) var scheduledRunLoopModeForTesting: RunLoop.Mode?
 
     init(handler: @escaping (TimeInterval) -> Void) {
         self.handler = handler
@@ -34,18 +47,21 @@ final class LYSVGADisplayLinkClock: LYSVGADisplayClock {
 
         let proxy = LYSVGADisplayLinkProxy(owner: self)
         let displayLink = CADisplayLink(target: proxy, selector: #selector(LYSVGADisplayLinkProxy.tick(_:)))
-        displayLink.add(to: .main, forMode: .common)
+        displayLink.add(to: .main, forMode: runLoopMode)
         self.displayLink = displayLink
+        scheduledRunLoopModeForTesting = runLoopMode
     }
 
     func pause() {
         displayLink?.invalidate()
         displayLink = nil
+        scheduledRunLoopModeForTesting = nil
     }
 
     func invalidate() {
         displayLink?.invalidate()
         displayLink = nil
+        scheduledRunLoopModeForTesting = nil
     }
 
     fileprivate func tick(at timestamp: TimeInterval) {

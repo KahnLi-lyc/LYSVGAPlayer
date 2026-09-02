@@ -1,3 +1,4 @@
+import Foundation
 import UIKit
 
 typealias LYSVGADynamicImageReader = @Sendable (URL) async throws -> (Data, URLResponse)
@@ -164,6 +165,43 @@ public final class LYSVGAPlayerView: UIView {
 
     public var repeatMode: LYSVGARepeatMode = .once
     public var endBehavior: LYSVGAEndBehavior = .holdEndFrame
+
+    @IBInspectable public var loops: Int {
+        get {
+            switch repeatMode {
+            case .once:
+                1
+            case let .count(count):
+                count > UInt(Int.max) ? Int.max : Int(count)
+            case .forever:
+                0
+            }
+        }
+        set {
+            if newValue <= 0 {
+                repeatMode = .forever
+            } else if newValue == 1 {
+                repeatMode = .once
+            } else {
+                repeatMode = .count(UInt(newValue))
+            }
+        }
+    }
+
+    @IBInspectable public var clearsAfterStop: Bool {
+        get { endBehavior == .clear }
+        set {
+            if newValue {
+                endBehavior = .clear
+            } else if endBehavior == .clear {
+                endBehavior = .holdEndFrame
+            }
+        }
+    }
+
+    public var displayLinkRunLoopMode: RunLoop.Mode = .common {
+        didSet { clock?.runLoopMode = displayLinkRunLoopMode }
+    }
 
     public var playbackRate = 1.0 {
         didSet {
@@ -712,6 +750,7 @@ private extension LYSVGAPlayerView {
         let clock = clockFactory { [weak self] timestamp in
             self?.tick(at: timestamp)
         }
+        clock.runLoopMode = displayLinkRunLoopMode
         self.clock = clock
         return clock
     }

@@ -23,6 +23,54 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertTrue(view.layer.sublayers?.contains(where: { $0 === view.rendererRootLayerForTesting }) == true)
     }
 
+    func testInspectableAliasesMapToTypedPlaybackConfiguration() {
+        let view = LYSVGAPlayerView()
+
+        XCTAssertEqual(view.loops, 1)
+        XCTAssertFalse(view.clearsAfterStop)
+
+        view.loops = 0
+        XCTAssertEqual(view.repeatMode, .forever)
+        view.loops = -1
+        XCTAssertEqual(view.repeatMode, .forever)
+        view.loops = 1
+        XCTAssertEqual(view.repeatMode, .once)
+        view.loops = 3
+        XCTAssertEqual(view.repeatMode, .count(3))
+
+        view.repeatMode = .count(UInt(Int.max) + 1)
+        XCTAssertEqual(view.loops, Int.max)
+
+        view.clearsAfterStop = true
+        XCTAssertEqual(view.endBehavior, .clear)
+        view.clearsAfterStop = false
+        XCTAssertEqual(view.endBehavior, .holdEndFrame)
+
+        view.endBehavior = .holdStartFrame
+        view.clearsAfterStop = false
+        XCTAssertEqual(view.endBehavior, .holdStartFrame)
+    }
+
+    func testDisplayLinkRunLoopModePropagatesWithoutReplacingTimelineOrClock() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        view.displayLinkRunLoopMode = .default
+        try await view.setVideo(try makePlayerVideo(fps: 10, frameCount: 4))
+        try view.play()
+        view.tickForTesting(at: 0)
+        view.tickForTesting(at: 0.1)
+        let frameBeforeChange = view.currentFrame
+        let startCountBeforeChange = clock.startCount
+
+        let customMode = RunLoop.Mode("com.lysvga.tests.custom")
+        view.displayLinkRunLoopMode = customMode
+
+        XCTAssertEqual(clock.runLoopMode, customMode)
+        XCTAssertEqual(clock.startCount, startCountBeforeChange)
+        XCTAssertEqual(view.currentFrame, frameBeforeChange)
+        XCTAssertEqual(view.playbackState, .playing)
+    }
+
     func testClearFromInstallFrameCallbackWinsOverReadyTransition() async throws {
         let view = LYSVGAPlayerView()
         let delegate = PlayerViewDelegateSpy()
@@ -903,6 +951,22 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         clock.invalidate()
         XCTAssertFalse(clock.hasScheduledDisplayLinkForTesting)
     }
+
+    func testDisplayLinkClockUsesConfiguredRunLoopModeAndMovesActiveLink() {
+        let clock = LYSVGADisplayLinkClock { _ in }
+        let customMode = RunLoop.Mode("com.lysvga.tests.custom")
+        clock.runLoopMode = .default
+
+        clock.start()
+        XCTAssertEqual(clock.scheduledRunLoopModeForTesting, .default)
+
+        clock.runLoopMode = customMode
+        XCTAssertTrue(clock.hasScheduledDisplayLinkForTesting)
+        XCTAssertEqual(clock.scheduledRunLoopModeForTesting, customMode)
+
+        clock.invalidate()
+        XCTAssertNil(clock.scheduledRunLoopModeForTesting)
+    }
 }
 
 @MainActor
@@ -947,6 +1011,7 @@ private final class PlayerViewDelegateSpy: LYSVGAPlayerViewDelegate {
 @MainActor
 private final class PlayerViewTestClock: LYSVGADisplayClock {
     var timestamp: TimeInterval = 0
+    var runLoopMode: RunLoop.Mode = .common
     private(set) var isRunning = false
     private(set) var isInvalidated = false
     private(set) var startCount = 0
