@@ -19,7 +19,7 @@ Package 使用 Swift tools 6.2、Swift 6 语言模式与 Swift 6 默认的完整
 ## 已实现能力
 
 - SVGA 1.x ZIP/JSON 与 2.x zlib/Protobuf 识别、解压、校验和统一模型映射
-- `Data`、文件与 HTTP(S) 加载，相同请求合并、取消、内存 LRU 与磁盘缓存
+- `Data`、Bundle、文件、HTTP(S) 与完整 `URLRequest` 加载，相同请求合并、取消、内存 LRU 与磁盘缓存
 - ImageIO 后台位图准备，Core Animation 可复用图层树
 - SVG Path `M/L/H/V/C/S/Q/T/A/Z`、相对指令、重复参数与科学计数法
 - 位图、矢量、clipPath、keep-frame 与 matte 渲染
@@ -63,7 +63,7 @@ import UIKit
 @MainActor
 final class AnimationViewController: UIViewController {
     private let playerView = LYSVGAPlayerView()
-    private let loader = LYSVGAAssetLoader()
+    private let loader = LYSVGAAssetLoader.shared
 
     func loadAnimation(from url: URL) async throws {
         playerView.contentMode = .scaleAspectFit
@@ -71,8 +71,31 @@ final class AnimationViewController: UIViewController {
         playerView.isMuted = false
         try await playerView.load(.remote(url), using: loader, autoplay: true)
     }
+
+    func loadBundledAnimation() async throws {
+        try await playerView.load(named: "headwear", autoplay: true)
+    }
 }
 ```
+
+需要保留鉴权头、请求方法、Body、超时或网络策略时，直接传入 `URLRequest`：
+
+```swift
+var request = URLRequest(url: URL(string: "https://example.com/headwear.svga")!)
+request.httpMethod = "POST"
+request.setValue("Bearer token", forHTTPHeaderField: "Authorization")
+request.httpBody = Data(#"{"userID":"42"}"#.utf8)
+request.timeoutInterval = 15
+
+try await playerView.load(
+    .request(request),
+    using: .shared,
+    cachePolicy: .automatic,
+    autoplay: true
+)
+```
+
+请求缓存键由标准化 URL、method、排序后的 headers、Body 摘要、超时及相关网络策略共同生成，落盘时只保存 SHA-256；不会把 `Authorization` 等头字段原文写入文件名。无法稳定重放的 `httpBodyStream` 会返回 `LYSVGAError.invalidRequest`。
 
 播放控制：
 
@@ -87,6 +110,30 @@ playerView.clear()
 ```
 
 `repeatMode` 支持 `.once`、`.count(UInt)` 与 `.forever`；`.count(0)` 在播放时返回配置错误。`playbackRate` 会钳制到 `0.5...2.0`。`endBehavior` 支持 `.clear`、`.holdStartFrame` 与 `.holdEndFrame`。
+
+### LYSVGAImageView 与 Storyboard
+
+只需要通过资源名或 URL 自动加载时，可以使用 `LYSVGAImageView`：
+
+```swift
+let imageView = LYSVGAImageView()
+imageView.contentMode = .scaleAspectFit
+imageView.autoPlay = true
+imageView.loops = 0
+imageView.imageName = "headwear"
+
+// HTTP(S) 字符串会自动作为远程资源加载。
+imageView.imageName = "https://example.com/headwear.svga"
+```
+
+`imageName` 默认在 `resourceBundle`（默认 `.main`）中查找 `.svga` 文件；名称自带扩展名时不会重复追加。新赋值采用 last-request-wins，空名称和 `clear()` 都会取消旧任务并清空画面。`assetLoader` 与 `cachePolicy` 可在赋值 `imageName` 前替换，默认分别为 `.shared` 与 `.automatic`。
+
+在 Storyboard 中把视图 Custom Class 设为 `LYSVGAImageView`，即可配置 `autoPlay`、`imageName`、`loops` 和 `clearsAfterStop`：
+
+- `loops <= 0` 为无限循环，`1` 为播放一次，`> 1` 为指定次数。
+- `clearsAfterStop = true` 对应 `.clear`；从 `true` 改为 `false` 对应 `.holdEndFrame`。
+- `.holdStartFrame` 仍通过强类型 `endBehavior` 设置。
+- `displayLinkRunLoopMode` 默认 `.common`，也可设为 `.default` 或自定义 Mode；播放中修改不会重置帧号、时间线或音频。
 
 ## SwiftUI 使用
 
@@ -109,6 +156,35 @@ struct AnimationView: View {
 ```
 
 `LYSVGAPlayerController` 始终持有同一个 `LYSVGAPlayerView`，通过 iOS 16 可用的 `ObservableObject/@Published` 发布播放状态、帧、进度、循环和错误事件。
+
+Controller 会转发 `repeatMode`、`endBehavior`、`playbackRate`、`allowsFrameSkipping`、`isMuted`、`audioVolume` 与 `displayLinkRunLoopMode`。SwiftUI 层仍使用同一套 UIKit/Core Animation 播放内核。
+
+## 从 SVGAPlayer-iOS 迁移
+
+LYSVGAPlayer 面向 Swift 6 项目，不提供 Objective-C 兼容层，也不声明旧库同名的 `SVGAPlayer` 或 `SVGAParser`。新项目可以直接依赖本库；旧项目需要按下表做一次明确迁移，不能只替换依赖而保持源码不变。
+
+| SVGAPlayer-iOS 2.5.8 | LYSVGAPlayer | 说明 |
+| --- | --- | --- |
+| `SVGAPlayer` | `LYSVGAPlayerView` | 强类型 UIKit 播放器 |
+| `SVGAImageView.autoPlay/imageName` | `LYSVGAImageView.autoPlay/imageName` | Bundle 名称和 HTTP(S) URL 便捷加载 |
+| `parseWithNamed:inBundle:` | `playerView.load(named:in:using:autoplay:)` | `async throws`，资源缺失返回 `.missingResource` |
+| `parseWithURLRequest:` | `playerView.load(.request(request), using:autoplay:)` | 保留 method、headers、Body、timeout 与网络策略 |
+| `loops` | `repeatMode` 或 `loops` | 推荐 `.once`、`.count`、`.forever` |
+| `clearsAfterStop` | `endBehavior` 或 `clearsAfterStop` | 推荐强类型结束行为 |
+| `mainRunLoopMode` | `displayLinkRunLoopMode` | 默认 `.common`，运行中可切换 |
+| `referenceLayer` 动态替换 | 无对应接口 | 上游已废弃且参数未参与实际渲染；请使用动态图片、文本、隐藏和 Drawing Handler |
+
+迁移后的解析、安装和播放可以合并为一次调用：
+
+```swift
+try await playerView.load(
+    named: "headwear",
+    in: .main,
+    using: .shared,
+    cachePolicy: .automatic,
+    autoplay: true
+)
+```
 
 ## 动态内容
 
@@ -143,7 +219,7 @@ let files = try await exporter.exportPNGSequence(frames: 0...20, to: outputDirec
 - 倒放不启动内嵌音频。
 - 库不修改全局 `AVAudioSession`，宿主应用负责 category、路由、中断和混音策略。
 - 进入后台或离开 Window 时暂停；重新激活时只恢复中断前正在播放的实例。
-- `clear()` 与释放会取消加载/动态图片，停止时钟和音频并移除图层。
+- `LYSVGAImageView.clear()` 与释放会取消其便捷加载任务；播放器清理还会取消动态图片、停止时钟和音频并移除图层。
 
 ## Demo、测试与性能
 
