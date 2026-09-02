@@ -4,6 +4,30 @@ public enum LYSVGASource: Sendable {
     case data(Data, cacheKey: String? = nil)
     case file(URL)
     case remote(URL)
+    case request(URLRequest)
+
+    public static func bundleResource(
+        named name: String,
+        withExtension fileExtension: String = "svga",
+        subdirectory: String? = nil,
+        in bundle: Bundle = .main
+    ) throws -> LYSVGASource {
+        let path = name as NSString
+        let explicitExtension = path.pathExtension
+        let resourceName = explicitExtension.isEmpty ? name : path.deletingPathExtension
+        let resourceExtension = explicitExtension.isEmpty ? fileExtension : explicitExtension
+        guard let url = bundle.url(
+            forResource: resourceName,
+            withExtension: resourceExtension.isEmpty ? nil : resourceExtension,
+            subdirectory: subdirectory
+        ) else {
+            let filename = resourceExtension.isEmpty
+                ? resourceName
+                : "\(resourceName).\(resourceExtension)"
+            throw LYSVGAError.missingResource(filename)
+        }
+        return .file(url)
+    }
 }
 
 public enum LYSVGACachePolicy: Sendable {
