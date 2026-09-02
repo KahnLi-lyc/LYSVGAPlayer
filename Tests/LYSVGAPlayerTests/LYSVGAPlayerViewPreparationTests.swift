@@ -406,6 +406,7 @@ private final class PreparationTrackingAudioPlayer: LYSVGAAudioPlaying {
 @MainActor
 private final class PreparationTestClock: LYSVGADisplayClock {
     var timestamp: TimeInterval = 0
+    var runLoopMode: RunLoop.Mode = .common
     private(set) var isRunning = false
     private(set) var isInvalidated = false
 

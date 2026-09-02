@@ -44,6 +44,11 @@ public final class LYSVGAPlayerController: NSObject, ObservableObject {
         set { playerView.audioVolume = newValue }
     }
 
+    public var displayLinkRunLoopMode: RunLoop.Mode {
+        get { playerView.displayLinkRunLoopMode }
+        set { playerView.displayLinkRunLoopMode = newValue }
+    }
+
     public override convenience init() {
         self.init(playerView: LYSVGAPlayerView())
     }
