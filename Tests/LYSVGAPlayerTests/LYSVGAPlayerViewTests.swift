@@ -13,6 +13,7 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertNil(view.currentFrame)
         XCTAssertEqual(view.currentProgress, 0)
         XCTAssertFalse(view.isReversePlayback)
+        XCTAssertEqual(view.displayLinkRunLoopMode, .common)
 
         try await view.setVideo(video)
 
@@ -941,6 +942,7 @@ final class LYSVGAPlayerViewTests: XCTestCase {
 
         clock.start()
         XCTAssertTrue(clock.hasScheduledDisplayLinkForTesting)
+        XCTAssertEqual(clock.scheduledRunLoopModeForTesting, .common)
 
         clock.pause()
         XCTAssertFalse(clock.hasScheduledDisplayLinkForTesting)
