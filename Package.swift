@@ -40,6 +40,7 @@ let package = Package(
             dependencies: ["LYSVGAPlayer"],
             resources: [
                 .copy("Fixtures"),
+                .copy("ImageViewFixture.svga"),
             ]
         ),
         .testTarget(

@@ -142,7 +142,7 @@ public extension LYSVGAPlayerViewDelegate {
 }
 
 @MainActor
-public final class LYSVGAPlayerView: UIView {
+public class LYSVGAPlayerView: UIView {
     typealias ClockFactory = (@escaping (TimeInterval) -> Void) -> any LYSVGADisplayClock
     typealias CandidateFactory = () -> LYSVGAPlayerPreparationCandidate
     typealias PreparationHook = (LYSVGAVideo) async throws -> Void
@@ -315,12 +315,44 @@ public final class LYSVGAPlayerView: UIView {
     }
 
     public func setVideo(_ video: LYSVGAVideo) async throws {
+        try await setVideo(video, autoplay: false)
+    }
+
+    func setVideo(_ video: LYSVGAVideo, autoplay: Bool) async throws {
         let request = beginLoadingRequest()
         try await prepareAndInstall(
             video,
             generation: request.generation,
             revision: request.revision,
-            autoplay: false
+            autoplay: autoplay
+        )
+    }
+
+    public func load(
+        named name: String,
+        withExtension fileExtension: String = "svga",
+        subdirectory: String? = nil,
+        in bundle: Bundle = .main,
+        using loader: LYSVGAAssetLoader = .shared,
+        cachePolicy: LYSVGACachePolicy = .automatic,
+        autoplay: Bool = false
+    ) async throws {
+        let source: LYSVGASource
+        do {
+            source = try .bundleResource(
+                named: name,
+                withExtension: fileExtension,
+                subdirectory: subdirectory,
+                in: bundle
+            )
+        } catch {
+            throw reportConvenienceLoadingFailure(error)
+        }
+        try await load(
+            source,
+            using: loader,
+            cachePolicy: cachePolicy,
+            autoplay: autoplay
         )
     }
 
@@ -521,6 +553,16 @@ extension LYSVGAPlayerView {
 
     func tickForTesting(at timestamp: TimeInterval) {
         tick(at: timestamp)
+    }
+
+    @discardableResult
+    func reportConvenienceLoadingFailure(_ error: Error) -> LYSVGAError {
+        let request = beginLoadingRequest()
+        return finishLoadingFailure(
+            error,
+            generation: request.generation,
+            revision: request.revision
+        )
     }
 }
 
