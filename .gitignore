@@ -1,14 +1,13 @@
 # Swift Package Manager
-/.build/
-/.swiftpm/
+.build/
+.swiftpm/
 /Package.resolved
 
 # Xcode
-/build/
-/DerivedData/
-*.xcresult
+DerivedData/
+xcuserdata/
 *.xcuserstate
-**/xcuserdata/
+*.xcresult
 
 # Local test assets
 /TestAssets/Local/
