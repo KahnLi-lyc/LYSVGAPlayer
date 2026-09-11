@@ -24,3 +24,17 @@
 
 # macOS
 .DS_Store
+
+# Secrets and signing credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.crt
+id_rsa
+id_rsa.*
