@@ -16,7 +16,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/apple/swift-protobuf.git",
-            from: "1.27.0"
+            from: "1.38.1"
         ),
         .package(
             url: "https://github.com/weichsel/ZIPFoundation.git",

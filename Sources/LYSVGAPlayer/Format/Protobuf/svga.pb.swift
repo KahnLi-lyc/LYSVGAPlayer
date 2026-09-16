@@ -8,7 +8,11 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -16,12 +20,12 @@ import SwiftProtobuf
 // incompatible with the version of SwiftProtobuf to which you are linking.
 // Please ensure that you are building against the same version of the API
 // that was used to generate this file.
-fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAPIVersionCheck {
+fileprivate nonisolated struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAPIVersionCheck {
   struct _2: SwiftProtobuf.ProtobufAPIVersion_2 {}
   typealias Version = _2
 }
 
-struct Com_Opensource_Svga_MovieParams: Sendable {
+nonisolated struct Com_Opensource_Svga_MovieParams: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -43,7 +47,7 @@ struct Com_Opensource_Svga_MovieParams: Sendable {
   init() {}
 }
 
-struct Com_Opensource_Svga_SpriteEntity: Sendable {
+nonisolated struct Com_Opensource_Svga_SpriteEntity: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -62,7 +66,7 @@ struct Com_Opensource_Svga_SpriteEntity: Sendable {
   init() {}
 }
 
-struct Com_Opensource_Svga_AudioEntity: Sendable {
+nonisolated struct Com_Opensource_Svga_AudioEntity: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -87,7 +91,7 @@ struct Com_Opensource_Svga_AudioEntity: Sendable {
   init() {}
 }
 
-struct Com_Opensource_Svga_Layout: Sendable {
+nonisolated struct Com_Opensource_Svga_Layout: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -105,7 +109,7 @@ struct Com_Opensource_Svga_Layout: Sendable {
   init() {}
 }
 
-struct Com_Opensource_Svga_Transform: Sendable {
+nonisolated struct Com_Opensource_Svga_Transform: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -127,14 +131,14 @@ struct Com_Opensource_Svga_Transform: Sendable {
   init() {}
 }
 
-struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
+nonisolated struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   /// 矢量类型
   var type: Com_Opensource_Svga_ShapeEntity.ShapeType {
-    get {return _storage._type}
+    get {_storage._type}
     set {_uniqueStorage()._type = newValue}
   }
 
@@ -169,34 +173,34 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
 
   /// 渲染参数
   var styles: Com_Opensource_Svga_ShapeEntity.ShapeStyle {
-    get {return _storage._styles ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle()}
+    get {_storage._styles ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle()}
     set {_uniqueStorage()._styles = newValue}
   }
   /// Returns true if `styles` has been explicitly set.
-  var hasStyles: Bool {return _storage._styles != nil}
+  var hasStyles: Bool {_storage._styles != nil}
   /// Clears the value of `styles`. Subsequent reads from it will return its default value.
   mutating func clearStyles() {_uniqueStorage()._styles = nil}
 
   /// 矢量图层 2D 变换矩阵
   var transform: Com_Opensource_Svga_Transform {
-    get {return _storage._transform ?? Com_Opensource_Svga_Transform()}
+    get {_storage._transform ?? Com_Opensource_Svga_Transform()}
     set {_uniqueStorage()._transform = newValue}
   }
   /// Returns true if `transform` has been explicitly set.
-  var hasTransform: Bool {return _storage._transform != nil}
+  var hasTransform: Bool {_storage._transform != nil}
   /// Clears the value of `transform`. Subsequent reads from it will return its default value.
   mutating func clearTransform() {_uniqueStorage()._transform = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
-  enum OneOf_Args: Equatable, Sendable {
+  nonisolated enum OneOf_Args: Equatable, Sendable {
     case shape(Com_Opensource_Svga_ShapeEntity.ShapeArgs)
     case rect(Com_Opensource_Svga_ShapeEntity.RectArgs)
     case ellipse(Com_Opensource_Svga_ShapeEntity.EllipseArgs)
 
   }
 
-  enum ShapeType: SwiftProtobuf.Enum, Swift.CaseIterable {
+  nonisolated enum ShapeType: SwiftProtobuf.Enum, Swift.CaseIterable {
     typealias RawValue = Int
 
     /// 路径
@@ -246,7 +250,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
 
   }
 
-  struct ShapeArgs: Sendable {
+  nonisolated struct ShapeArgs: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
     // methods supported on all messages.
@@ -259,7 +263,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
     init() {}
   }
 
-  struct RectArgs: Sendable {
+  nonisolated struct RectArgs: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
     // methods supported on all messages.
@@ -280,7 +284,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
     init() {}
   }
 
-  struct EllipseArgs: Sendable {
+  nonisolated struct EllipseArgs: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
     // methods supported on all messages.
@@ -302,28 +306,28 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
     init() {}
   }
 
-  struct ShapeStyle: Sendable {
+  nonisolated struct ShapeStyle: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
     // methods supported on all messages.
 
     /// 填充色
     var fill: Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor {
-      get {return _fill ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor()}
+      get {_fill ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor()}
       set {_fill = newValue}
     }
     /// Returns true if `fill` has been explicitly set.
-    var hasFill: Bool {return self._fill != nil}
+    var hasFill: Bool {self._fill != nil}
     /// Clears the value of `fill`. Subsequent reads from it will return its default value.
     mutating func clearFill() {self._fill = nil}
 
     /// 描边色
     var stroke: Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor {
-      get {return _stroke ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor()}
+      get {_stroke ?? Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor()}
       set {_stroke = newValue}
     }
     /// Returns true if `stroke` has been explicitly set.
-    var hasStroke: Bool {return self._stroke != nil}
+    var hasStroke: Bool {self._stroke != nil}
     /// Clears the value of `stroke`. Subsequent reads from it will return its default value.
     mutating func clearStroke() {self._stroke = nil}
 
@@ -350,7 +354,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
 
     var unknownFields = SwiftProtobuf.UnknownStorage()
 
-    enum LineCap: SwiftProtobuf.Enum, Swift.CaseIterable {
+    nonisolated enum LineCap: SwiftProtobuf.Enum, Swift.CaseIterable {
       typealias RawValue = Int
       case butt // = 0
       case round // = 1
@@ -388,7 +392,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
 
     }
 
-    enum LineJoin: SwiftProtobuf.Enum, Swift.CaseIterable {
+    nonisolated enum LineJoin: SwiftProtobuf.Enum, Swift.CaseIterable {
       typealias RawValue = Int
       case miter // = 0
       case round // = 1
@@ -426,7 +430,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
 
     }
 
-    struct RGBAColor: Sendable {
+    nonisolated struct RGBAColor: Sendable {
       // SwiftProtobuf.Message conformance is added in an extension below. See the
       // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
       // methods supported on all messages.
@@ -455,7 +459,7 @@ struct Com_Opensource_Svga_ShapeEntity: @unchecked Sendable {
   fileprivate var _storage = _StorageClass.defaultInstance
 }
 
-struct Com_Opensource_Svga_FrameEntity: Sendable {
+nonisolated struct Com_Opensource_Svga_FrameEntity: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -465,21 +469,21 @@ struct Com_Opensource_Svga_FrameEntity: Sendable {
 
   /// 初始约束大小
   var layout: Com_Opensource_Svga_Layout {
-    get {return _layout ?? Com_Opensource_Svga_Layout()}
+    get {_layout ?? Com_Opensource_Svga_Layout()}
     set {_layout = newValue}
   }
   /// Returns true if `layout` has been explicitly set.
-  var hasLayout: Bool {return self._layout != nil}
+  var hasLayout: Bool {self._layout != nil}
   /// Clears the value of `layout`. Subsequent reads from it will return its default value.
   mutating func clearLayout() {self._layout = nil}
 
   /// 2D 变换矩阵
   var transform: Com_Opensource_Svga_Transform {
-    get {return _transform ?? Com_Opensource_Svga_Transform()}
+    get {_transform ?? Com_Opensource_Svga_Transform()}
     set {_transform = newValue}
   }
   /// Returns true if `transform` has been explicitly set.
-  var hasTransform: Bool {return self._transform != nil}
+  var hasTransform: Bool {self._transform != nil}
   /// Clears the value of `transform`. Subsequent reads from it will return its default value.
   mutating func clearTransform() {self._transform = nil}
 
@@ -497,7 +501,7 @@ struct Com_Opensource_Svga_FrameEntity: Sendable {
   fileprivate var _transform: Com_Opensource_Svga_Transform? = nil
 }
 
-struct Com_Opensource_Svga_MovieEntity: Sendable {
+nonisolated struct Com_Opensource_Svga_MovieEntity: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -507,11 +511,11 @@ struct Com_Opensource_Svga_MovieEntity: Sendable {
 
   /// 动画参数
   var params: Com_Opensource_Svga_MovieParams {
-    get {return _params ?? Com_Opensource_Svga_MovieParams()}
+    get {_params ?? Com_Opensource_Svga_MovieParams()}
     set {_params = newValue}
   }
   /// Returns true if `params` has been explicitly set.
-  var hasParams: Bool {return self._params != nil}
+  var hasParams: Bool {self._params != nil}
   /// Clears the value of `params`. Subsequent reads from it will return its default value.
   mutating func clearParams() {self._params = nil}
 
@@ -533,16 +537,11 @@ struct Com_Opensource_Svga_MovieEntity: Sendable {
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
-fileprivate let _protobuf_package = "com.opensource.svga"
+fileprivate nonisolated let _protobuf_package = "com.opensource.svga"
 
-extension Com_Opensource_Svga_MovieParams: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_MovieParams: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".MovieParams"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "viewBoxWidth"),
-    2: .same(proto: "viewBoxHeight"),
-    3: .same(proto: "fps"),
-    4: .same(proto: "frames"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}viewBoxWidth\0\u{1}viewBoxHeight\0\u{1}fps\0\u{1}frames\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -585,13 +584,9 @@ extension Com_Opensource_Svga_MovieParams: SwiftProtobuf.Message, SwiftProtobuf.
   }
 }
 
-extension Com_Opensource_Svga_SpriteEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_SpriteEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".SpriteEntity"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "imageKey"),
-    2: .same(proto: "frames"),
-    3: .same(proto: "matteKey"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}imageKey\0\u{1}frames\0\u{1}matteKey\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -629,15 +624,9 @@ extension Com_Opensource_Svga_SpriteEntity: SwiftProtobuf.Message, SwiftProtobuf
   }
 }
 
-extension Com_Opensource_Svga_AudioEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_AudioEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".AudioEntity"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "audioKey"),
-    2: .same(proto: "startFrame"),
-    3: .same(proto: "endFrame"),
-    4: .same(proto: "startTime"),
-    5: .same(proto: "totalTime"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}audioKey\0\u{1}startFrame\0\u{1}endFrame\0\u{1}startTime\0\u{1}totalTime\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -685,14 +674,9 @@ extension Com_Opensource_Svga_AudioEntity: SwiftProtobuf.Message, SwiftProtobuf.
   }
 }
 
-extension Com_Opensource_Svga_Layout: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_Layout: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Layout"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "x"),
-    2: .same(proto: "y"),
-    3: .same(proto: "width"),
-    4: .same(proto: "height"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}x\0\u{1}y\0\u{1}width\0\u{1}height\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -735,16 +719,9 @@ extension Com_Opensource_Svga_Layout: SwiftProtobuf.Message, SwiftProtobuf._Mess
   }
 }
 
-extension Com_Opensource_Svga_Transform: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_Transform: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".Transform"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "a"),
-    2: .same(proto: "b"),
-    3: .same(proto: "c"),
-    4: .same(proto: "d"),
-    5: .same(proto: "tx"),
-    6: .same(proto: "ty"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}a\0\u{1}b\0\u{1}c\0\u{1}d\0\u{1}tx\0\u{1}ty\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -797,16 +774,9 @@ extension Com_Opensource_Svga_Transform: SwiftProtobuf.Message, SwiftProtobuf._M
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ShapeEntity"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "type"),
-    2: .same(proto: "shape"),
-    3: .same(proto: "rect"),
-    4: .same(proto: "ellipse"),
-    10: .same(proto: "styles"),
-    11: .same(proto: "transform"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}type\0\u{1}shape\0\u{1}rect\0\u{1}ellipse\0\u{2}\u{6}styles\0\u{1}transform\0")
 
   fileprivate class _StorageClass {
     var _type: Com_Opensource_Svga_ShapeEntity.ShapeType = .shape
@@ -814,15 +784,11 @@ extension Com_Opensource_Svga_ShapeEntity: SwiftProtobuf.Message, SwiftProtobuf.
     var _styles: Com_Opensource_Svga_ShapeEntity.ShapeStyle? = nil
     var _transform: Com_Opensource_Svga_Transform? = nil
 
-    #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
       // This will force a copy to be made of this reference when the first mutation occurs;
       // hence, it is safe to mark this as `nonisolated(unsafe)`.
       static nonisolated(unsafe) let defaultInstance = _StorageClass()
-    #else
-      static let defaultInstance = _StorageClass()
-    #endif
 
     private init() {}
 
@@ -949,20 +915,13 @@ extension Com_Opensource_Svga_ShapeEntity: SwiftProtobuf.Message, SwiftProtobuf.
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeType: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    0: .same(proto: "SHAPE"),
-    1: .same(proto: "RECT"),
-    2: .same(proto: "ELLIPSE"),
-    3: .same(proto: "KEEP"),
-  ]
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeType: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SHAPE\0\u{1}RECT\0\u{1}ELLIPSE\0\u{1}KEEP\0")
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = Com_Opensource_Svga_ShapeEntity.protoMessageName + ".ShapeArgs"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "d"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}d\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -990,15 +949,9 @@ extension Com_Opensource_Svga_ShapeEntity.ShapeArgs: SwiftProtobuf.Message, Swif
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity.RectArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity.RectArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = Com_Opensource_Svga_ShapeEntity.protoMessageName + ".RectArgs"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "x"),
-    2: .same(proto: "y"),
-    3: .same(proto: "width"),
-    4: .same(proto: "height"),
-    5: .same(proto: "cornerRadius"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}x\0\u{1}y\0\u{1}width\0\u{1}height\0\u{1}cornerRadius\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1046,14 +999,9 @@ extension Com_Opensource_Svga_ShapeEntity.RectArgs: SwiftProtobuf.Message, Swift
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity.EllipseArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity.EllipseArgs: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = Com_Opensource_Svga_ShapeEntity.protoMessageName + ".EllipseArgs"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "x"),
-    2: .same(proto: "y"),
-    3: .same(proto: "radiusX"),
-    4: .same(proto: "radiusY"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}x\0\u{1}y\0\u{1}radiusX\0\u{1}radiusY\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1096,19 +1044,9 @@ extension Com_Opensource_Svga_ShapeEntity.EllipseArgs: SwiftProtobuf.Message, Sw
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeStyle: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeStyle: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = Com_Opensource_Svga_ShapeEntity.protoMessageName + ".ShapeStyle"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "fill"),
-    2: .same(proto: "stroke"),
-    3: .same(proto: "strokeWidth"),
-    4: .same(proto: "lineCap"),
-    5: .same(proto: "lineJoin"),
-    6: .same(proto: "miterLimit"),
-    7: .same(proto: "lineDashI"),
-    8: .same(proto: "lineDashII"),
-    9: .same(proto: "lineDashIII"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}fill\0\u{1}stroke\0\u{1}strokeWidth\0\u{1}lineCap\0\u{1}lineJoin\0\u{1}miterLimit\0\u{1}lineDashI\0\u{1}lineDashII\0\u{1}lineDashIII\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1180,30 +1118,17 @@ extension Com_Opensource_Svga_ShapeEntity.ShapeStyle: SwiftProtobuf.Message, Swi
   }
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.LineCap: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    0: .same(proto: "LineCap_BUTT"),
-    1: .same(proto: "LineCap_ROUND"),
-    2: .same(proto: "LineCap_SQUARE"),
-  ]
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.LineCap: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LineCap_BUTT\0\u{1}LineCap_ROUND\0\u{1}LineCap_SQUARE\0")
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.LineJoin: SwiftProtobuf._ProtoNameProviding {
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    0: .same(proto: "LineJoin_MITER"),
-    1: .same(proto: "LineJoin_ROUND"),
-    2: .same(proto: "LineJoin_BEVEL"),
-  ]
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.LineJoin: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0LineJoin_MITER\0\u{1}LineJoin_ROUND\0\u{1}LineJoin_BEVEL\0")
 }
 
-extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = Com_Opensource_Svga_ShapeEntity.ShapeStyle.protoMessageName + ".RGBAColor"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "r"),
-    2: .same(proto: "g"),
-    3: .same(proto: "b"),
-    4: .same(proto: "a"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}r\0\u{1}g\0\u{1}b\0\u{1}a\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1246,15 +1171,9 @@ extension Com_Opensource_Svga_ShapeEntity.ShapeStyle.RGBAColor: SwiftProtobuf.Me
   }
 }
 
-extension Com_Opensource_Svga_FrameEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_FrameEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".FrameEntity"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "alpha"),
-    2: .same(proto: "layout"),
-    3: .same(proto: "transform"),
-    4: .same(proto: "clipPath"),
-    5: .same(proto: "shapes"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}alpha\0\u{1}layout\0\u{1}transform\0\u{1}clipPath\0\u{1}shapes\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1306,15 +1225,9 @@ extension Com_Opensource_Svga_FrameEntity: SwiftProtobuf.Message, SwiftProtobuf.
   }
 }
 
-extension Com_Opensource_Svga_MovieEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension Com_Opensource_Svga_MovieEntity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".MovieEntity"
-  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
-    1: .same(proto: "version"),
-    2: .same(proto: "params"),
-    3: .same(proto: "images"),
-    4: .same(proto: "sprites"),
-    5: .same(proto: "audios"),
-  ]
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}version\0\u{1}params\0\u{1}images\0\u{1}sprites\0\u{1}audios\0")
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {

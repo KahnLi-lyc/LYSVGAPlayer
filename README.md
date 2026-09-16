@@ -13,7 +13,7 @@ LYSVGAPlayer 是面向 iOS 16 及后续系统的原生 Swift SVGA 播放器。�
 
 Package 使用 Swift tools 6.2、Swift 6 语言模式与 Swift 6 默认的完整并发检查。依赖包括：
 
-- [SwiftProtobuf](https://github.com/apple/swift-protobuf)，最低 1.27.0
+- [SwiftProtobuf](https://github.com/apple/swift-protobuf)，最低 1.38.1
 - [ZIPFoundation](https://github.com/weichsel/ZIPFoundation)，最低 0.9.19
 
 ## 已实现能力

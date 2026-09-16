@@ -14,6 +14,8 @@ final class UIKitDemoViewController: UIViewController {
     private let loopSwitch = UISwitch()
     private let reverseSwitch = UISwitch()
     private var loadTask: Task<Void, Never>?
+    private var sampleMenuButton: UIButton!
+    private var fileMenuButton: UIButton!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,11 +26,24 @@ final class UIKitDemoViewController: UIViewController {
         playerView.clipsToBounds = true
         configureHierarchy()
         configureControls()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(localAssetsDidChange),
+            name: DemoSupport.localAssetsDidChange,
+            object: nil
+        )
         updateState()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshSampleMenu(sampleMenuButton)
+        refreshFileMenu(fileMenuButton)
     }
 
     deinit {
         loadTask?.cancel()
+        NotificationCenter.default.removeObserver(self)
     }
 
     private func configureHierarchy() {
@@ -53,7 +68,9 @@ final class UIKitDemoViewController: UIViewController {
         statusLabel.numberOfLines = 2
         stack.addArrangedSubview(statusLabel)
 
-        let sourceRow = UIStackView(arrangedSubviews: [sampleButton(), fileButton()])
+        sampleMenuButton = sampleButton()
+        fileMenuButton = fileButton()
+        let sourceRow = UIStackView(arrangedSubviews: [sampleMenuButton, fileMenuButton])
         sourceRow.axis = .horizontal
         sourceRow.spacing = 10
         sourceRow.distribution = .fillEqually
@@ -122,6 +139,12 @@ final class UIKitDemoViewController: UIViewController {
     private func sampleButton() -> UIButton {
         let button = UIButton(type: .system)
         button.configuration = titleConfiguration("Bundle", systemImage: "shippingbox")
+        refreshSampleMenu(button)
+        button.showsMenuAsPrimaryAction = true
+        return button
+    }
+
+    private func refreshSampleMenu(_ button: UIButton) {
         var menuChildren: [UIMenuElement] = DemoSample.allCases.map { sample in
             UIAction(title: sample.title) { [weak self] _ in self?.load(sample) }
         }
@@ -132,15 +155,31 @@ final class UIKitDemoViewController: UIViewController {
             menuChildren.append(UIMenu(title: "Local Assets", children: localActions))
         }
         button.menu = UIMenu(children: menuChildren)
-        button.showsMenuAsPrimaryAction = true
-        return button
     }
 
     private func fileButton() -> UIButton {
         let button = UIButton(type: .system)
         button.configuration = titleConfiguration("File", systemImage: "folder")
-        button.addAction(UIAction { [weak self] _ in self?.openFile() }, for: .touchUpInside)
+        refreshFileMenu(button)
+        button.showsMenuAsPrimaryAction = true
         return button
+    }
+
+    private func refreshFileMenu(_ button: UIButton) {
+        var children: [UIMenuElement] = DemoSupport.localAssets.map { asset in
+            UIAction(title: asset.title) { [weak self] _ in
+                self?.startLoad(.file(asset.url))
+            }
+        }
+        if children.isEmpty == false {
+            children.insert(UIMenu(title: "Project Assets", children: children), at: 0)
+        }
+        children.append(
+            UIAction(title: "Choose from Files", image: UIImage(systemName: "folder.badge.plus")) { [weak self] _ in
+                self?.openFile()
+            }
+        )
+        button.menu = UIMenu(children: children)
     }
 
     private func loadURLButton() -> UIButton {
@@ -243,9 +282,18 @@ final class UIKitDemoViewController: UIViewController {
     }
 
     private func openFile() {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: true)
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [UTType(filenameExtension: "svga") ?? .data],
+            asCopy: true
+        )
+        picker.allowsMultipleSelection = true
         picker.delegate = self
         present(picker, animated: true)
+    }
+
+    @objc private func localAssetsDidChange() {
+        refreshSampleMenu(sampleMenuButton)
+        refreshFileMenu(fileMenuButton)
     }
 
     private func startLoad(_ source: LYSVGASource) {
@@ -279,8 +327,13 @@ final class UIKitDemoViewController: UIViewController {
 
 extension UIKitDemoViewController: UIDocumentPickerDelegate {
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first else { return }
-        startLoad(.file(url))
+        do {
+            let imported = try DemoSupport.persistImportedFiles(urls)
+            guard let asset = imported.first else { return }
+            startLoad(.file(asset.url))
+        } catch {
+            statusLabel.text = error.localizedDescription
+        }
     }
 }
 

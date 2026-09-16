@@ -49,7 +49,7 @@ Demo 内置四个来自 SVGAPlayer-iOS 2.5.8 的 Apache 2.0 样例：
 3. 静音后动画继续，取消静音后音频时间线没有重新从零开始。
 4. Replace/Restore 能替换并恢复首个 Sprite。
 5. 页面底部控件不被 TabBar 遮挡，横竖屏和不同字号下仍可滚动操作。
-6. 文件选择器可以加载本地 `.svga`，URL 入口只接受 HTTPS。
+6. 文件选择器可以加载本地 `.svga`，URL 入口只接受 HTTPS。`File` 使用 iOS Files/document-provider 选择器，不能直接浏览 Mac 上的 `/Users/.../TestAssets`；选择后文件会复制到 App Documents，并自动出现在 `Bundle > Local Assets` 和 `Headwear List`。
 
 宿主 Demo 配置 `.ambient + mixWithOthers` 的 `AVAudioSession`；库本身不修改全局音频会话。
 
@@ -104,7 +104,13 @@ ios-deploy --id <DEVICE_UDID> --bundle_id com.lysvga.demo \
   --no-wifi
 ```
 
-重新启动 Demo 后，在 UIKit 或 SwiftUI 页面的 `Bundle > Local Assets` 中选择素材。
+导入完成后无需重启 Demo，在 UIKit 或 SwiftUI 页面的 `Bundle > Local Assets` 中选择素材。模拟器也可以直接推送到 Documents：
+
+```bash
+xcrun simctl push booted \
+  TestAssets/Local/head_wear_vip9.svga \
+  /Documents/head_wear_vip9.svga
+```
 
 ## iOS 16
 

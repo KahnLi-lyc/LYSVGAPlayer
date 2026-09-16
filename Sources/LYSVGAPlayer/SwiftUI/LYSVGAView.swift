@@ -18,16 +18,17 @@ public struct LYSVGAView: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> LYSVGAPlayerView {
-        configure(controller.playerView)
+        let playerView = controller.playerView
+        configure(playerView)
+        return playerView
     }
 
     public func updateUIView(_ playerView: LYSVGAPlayerView, context: Context) {
         configure(playerView)
     }
 
-    private func configure(_ playerView: LYSVGAPlayerView) -> LYSVGAPlayerView {
+    private func configure(_ playerView: LYSVGAPlayerView) {
         playerView.contentMode = contentMode
         playerView.clipsToBounds = clipsToBounds
-        return playerView
     }
 }

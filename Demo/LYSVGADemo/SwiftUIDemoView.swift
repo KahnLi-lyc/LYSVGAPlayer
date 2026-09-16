@@ -8,6 +8,7 @@ struct SwiftUIDemoView: View {
     @State private var loadTask: Task<Void, Never>?
     @State private var remoteURL = ""
     @State private var isImporting = false
+    @State private var localAssets = DemoSupport.localAssets
     @State private var loopsForever = true
     @State private var playsInReverse = false
     @State private var errorMessage: String?
@@ -37,10 +38,16 @@ struct SwiftUIDemoView: View {
             .navigationTitle("SwiftUI Player")
             .fileImporter(
                 isPresented: $isImporting,
-                allowedContentTypes: [UTType.data],
-                allowsMultipleSelection: false,
+                allowedContentTypes: [UTType(filenameExtension: "svga") ?? .data],
+                allowsMultipleSelection: true,
                 onCompletion: importFile
             )
+            .onReceive(NotificationCenter.default.publisher(for: DemoSupport.localAssetsDidChange)) { _ in
+                localAssets = DemoSupport.localAssets
+            }
+            .onAppear {
+                localAssets = DemoSupport.localAssets
+            }
             .onDisappear { loadTask?.cancel() }
         }
     }
@@ -52,9 +59,9 @@ struct SwiftUIDemoView: View {
                     ForEach(DemoSample.allCases) { sample in
                         Button(sample.title) { load(sample) }
                     }
-                    if DemoSupport.localAssets.isEmpty == false {
+                    if localAssets.isEmpty == false {
                         Section("Local Assets") {
-                            ForEach(DemoSupport.localAssets) { asset in
+                            ForEach(localAssets) { asset in
                                 Button(asset.title) { startLoad(.file(asset.url)) }
                             }
                         }
@@ -64,8 +71,19 @@ struct SwiftUIDemoView: View {
                 }
                 .buttonStyle(.bordered)
 
-                Button {
-                    isImporting = true
+                Menu {
+                    if localAssets.isEmpty == false {
+                        Section("Project Assets") {
+                            ForEach(localAssets) { asset in
+                                Button(asset.title) { startLoad(.file(asset.url)) }
+                            }
+                        }
+                    }
+                    Button {
+                        isImporting = true
+                    } label: {
+                        Label("Choose from Files", systemImage: "folder.badge.plus")
+                    }
                 } label: {
                     Label("File", systemImage: "folder")
                 }
@@ -187,12 +205,10 @@ struct SwiftUIDemoView: View {
 
     private func importFile(_ result: Result<[URL], Error>) {
         do {
-            let url = try result.get().first
-            guard let url else { return }
-            let didAccess = url.startAccessingSecurityScopedResource()
-            startLoad(.file(url)) {
-                if didAccess { url.stopAccessingSecurityScopedResource() }
-            }
+            let imported = try DemoSupport.persistImportedFiles(result.get())
+            guard let asset = imported.first else { return }
+            localAssets = DemoSupport.localAssets
+            startLoad(.file(asset.url))
         } catch {
             errorMessage = error.localizedDescription
         }

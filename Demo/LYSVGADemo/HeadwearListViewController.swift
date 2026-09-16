@@ -46,6 +46,7 @@ final class HeadwearListViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        loadAssets()
         monitor.start()
         setVisibleCellsActive(true)
     }
@@ -166,6 +167,16 @@ final class HeadwearListViewController: UIViewController {
             name: UIApplication.willEnterForegroundNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(localAssetsDidChange),
+            name: DemoSupport.localAssetsDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func localAssetsDidChange() {
+        loadAssets()
     }
 
     @objc private func applicationDidEnterBackground() {
