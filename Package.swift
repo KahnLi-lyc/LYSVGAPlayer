@@ -20,7 +20,7 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/weichsel/ZIPFoundation.git",
-            from: "0.9.19"
+            from: "0.9.20"
         ),
     ],
     targets: [

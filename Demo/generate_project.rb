@@ -39,7 +39,7 @@ target.build_configurations.each do |configuration|
   settings["GENERATE_INFOPLIST_FILE"] = "YES"
   settings["INFOPLIST_KEY_UILaunchScreen_Generation"] = "YES"
   settings["IPHONEOS_DEPLOYMENT_TARGET"] = "16.0"
-  settings["MARKETING_VERSION"] = "0.1.0"
+  settings["MARKETING_VERSION"] = "0.1.1"
   settings["PRODUCT_BUNDLE_IDENTIFIER"] = "com.lysvga.demo"
   settings["PRODUCT_NAME"] = "$(TARGET_NAME)"
   settings["SUPPORTED_PLATFORMS"] = "iphoneos iphonesimulator"
