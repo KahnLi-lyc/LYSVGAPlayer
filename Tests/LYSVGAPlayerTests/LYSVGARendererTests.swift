@@ -518,6 +518,38 @@ final class LYSVGARendererTests: XCTestCase {
         )
     }
 
+    func testLineDashFollowsUpstreamRules() throws {
+        func descriptor(_ lineDash: [Double]) throws -> LYSVGAShapeDescriptor {
+            try XCTUnwrap(LYSVGAShapeDescriptor(shape: LYSVGAShape(
+                type: .rect(LYSVGAShapeRect(rect: LYSVGARect(x: 0, y: 0, width: 5, height: 5), cornerRadius: 0)),
+                style: LYSVGAShapeStyle(
+                    stroke: LYSVGAColor(red: 0, green: 0, blue: 1, alpha: 1),
+                    strokeWidth: 1,
+                    lineDash: lineDash
+                )
+            )))
+        }
+
+        // V2 protobuf always provides three values; all zero means a solid stroke.
+        let solid = try descriptor([0, 0, 0])
+        XCTAssertNil(solid.lineDashPattern)
+        XCTAssertEqual(solid.lineDashPhase, 0)
+        XCTAssertNil(try descriptor([]).lineDashPattern)
+        XCTAssertNil(try descriptor([4]).lineDashPattern)
+
+        let dashed = try descriptor([3, 2, 1])
+        XCTAssertEqual(dashed.lineDashPattern, [NSNumber(value: 3), NSNumber(value: 2)])
+        XCTAssertEqual(dashed.lineDashPhase, 1)
+
+        let clamped = try descriptor([0.5, 0, 2])
+        XCTAssertEqual(clamped.lineDashPattern, [NSNumber(value: 1), NSNumber(value: 0.1)])
+        XCTAssertEqual(clamped.lineDashPhase, 2)
+
+        let twoValues = try descriptor([0, 4])
+        XCTAssertEqual(twoValues.lineDashPattern, [NSNumber(value: 1), NSNumber(value: 4)])
+        XCTAssertEqual(twoValues.lineDashPhase, 0)
+    }
+
     func testInvalidVectorStyleAndTransformNeverReachShapeLayer() async throws {
         let shape = LYSVGAShape(
             type: .rect(LYSVGAShapeRect(rect: LYSVGARect(x: 1, y: 1, width: 5, height: 5), cornerRadius: 0)),

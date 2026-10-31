@@ -104,12 +104,15 @@ struct LYSVGAShapeDescriptor {
         guard values.allSatisfy({ $0.isFinite && $0 >= 0 }) else {
             return (nil, 0)
         }
-        if values.count >= 3 {
-            let pattern = values.dropLast().map { NSNumber(value: $0) }
-            return (pattern.isEmpty ? nil : pattern, CGFloat(values.last ?? 0))
+        // Match SVGAPlayer-iOS: a dash is only applied when either length is positive, the
+        // lengths are clamped to at least 1 and 0.1, and the optional third value is the phase.
+        // V2 files always carry three values, so `[0, 0, 0]` must mean "solid stroke".
+        guard values.count >= 2, values[0] > 0 || values[1] > 0 else {
+            return (nil, 0)
         }
-        let pattern = values.map { NSNumber(value: $0) }
-        return (pattern.isEmpty ? nil : pattern, 0)
+        let pattern = [NSNumber(value: max(values[0], 1)), NSNumber(value: max(values[1], 0.1))]
+        let phase = values.count >= 3 ? CGFloat(values[2]) : 0
+        return (pattern, phase)
     }
 
     private static func makeLineCap(_ value: LYSVGALineCap) -> CAShapeLayerLineCap {
