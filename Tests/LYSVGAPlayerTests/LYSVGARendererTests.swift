@@ -35,7 +35,9 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertFalse(sprite.isHidden)
         XCTAssertEqual(sprite.opacity, 0.5, accuracy: 0.001)
         XCTAssertEqual(sprite.contentLayer.bounds, CGRect(x: 0, y: 0, width: 20, height: 20))
-        XCTAssertEqual(sprite.contentLayer.position, CGPoint(x: 10, y: 20))
+        XCTAssertEqual(sprite.contentLayer.position, .zero)
+        XCTAssertEqual(sprite.contentLayer.affineTransform(), CGAffineTransform(translationX: 10, y: 20))
+        XCTAssertEqual(sprite.contentLayer.frame, CGRect(x: 10, y: 20, width: 20, height: 20))
         XCTAssertEqual(sprite.contentLayer.contentsGravity, .resizeAspect)
         XCTAssertPixel(render(renderer.rootLayer, size: CGSize(width: 60, height: 60)), x: 15, y: 25, rgba: (128, 0, 0, 128), tolerance: 8)
         XCTAssertPixel(render(renderer.rootLayer, size: CGSize(width: 60, height: 60)), x: 5, y: 5, rgba: (0, 0, 0, 0), tolerance: 2)
@@ -43,8 +45,8 @@ final class LYSVGARendererTests: XCTestCase {
         renderer.display(frame: 1)
 
         XCTAssertTrue(firstContents as AnyObject === sprite.contentLayer.contents as AnyObject)
-        XCTAssertEqual(sprite.contentLayer.position, CGPoint(x: 20, y: 10))
-        XCTAssertEqual(sprite.contentLayer.affineTransform(), CGAffineTransform(translationX: 5, y: 4))
+        XCTAssertEqual(sprite.contentLayer.position, .zero)
+        XCTAssertEqual(sprite.contentLayer.affineTransform(), CGAffineTransform(translationX: 25, y: 14))
         XCTAssertEqual(sprite.contentLayer.frame, CGRect(x: 25, y: 14, width: 20, height: 20))
         let transformedImage = render(renderer.rootLayer, size: CGSize(width: 60, height: 60))
         XCTAssertEqual(nonTransparentBounds(transformedImage), CGRect(x: 25, y: 14, width: 20, height: 20))
@@ -342,11 +344,44 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertEqual(mask.bounds, CGRect(x: 0, y: 0, width: 20, height: 10))
         XCTAssertEqual(mask.position, .zero)
         XCTAssertEqual(mask.frame, CGRect(x: 0, y: 0, width: 20, height: 10))
-        XCTAssertEqual(spriteLayer.contentLayer.frame, CGRect(x: 15, y: 8, width: 40, height: 20))
+        // SVGAPlayer-iOS semantics: canvas = transform · (layout.origin + p) = (25 + 2px, 13 + 2py).
+        XCTAssertEqual(spriteLayer.contentLayer.frame, CGRect(x: 25, y: 13, width: 40, height: 20))
         let image = render(renderer.rootLayer, size: CGSize(width: 60, height: 40))
-        XCTAssertPixel(image, x: 25, y: 12, rgba: (0, 255, 0, 255), tolerance: 4)
-        XCTAssertPixel(image, x: 25, y: 22, rgba: (255, 0, 0, 255), tolerance: 4)
-        XCTAssertPixel(image, x: 45, y: 12, rgba: (0, 0, 0, 0), tolerance: 2)
+        XCTAssertPixel(image, x: 35, y: 17, rgba: (0, 255, 0, 255), tolerance: 4)
+        XCTAssertPixel(image, x: 35, y: 27, rgba: (255, 0, 0, 255), tolerance: 4)
+        XCTAssertPixel(image, x: 50, y: 17, rgba: (0, 0, 0, 0), tolerance: 2)
+    }
+
+    func testRotatedSpriteWithNonZeroLayoutOriginMatchesUpstreamTransformSemantics() async throws {
+        let bitmap = try pngData(size: CGSize(width: 40, height: 30), color: .red)
+        // 90° rotation plus translation; the upstream player maps local p to T · (layout.origin + p).
+        let transform = LYSVGATransform(a: 0, b: 1, c: -1, d: 0, tx: 100, ty: 10)
+        let sprite = LYSVGASprite(imageKey: "rotated", frames: [frame(
+            x: 10,
+            y: 20,
+            width: 40,
+            height: 30,
+            transform: transform
+        )])
+        let renderer = LYSVGARenderer()
+        try await renderer.prepare(video: try makeVideo(
+            width: 120,
+            height: 80,
+            images: ["rotated.png": bitmap],
+            sprites: [sprite]
+        ))
+        renderer.display(frame: 0)
+
+        let spriteLayer = try XCTUnwrap(renderer.spriteLayers.first)
+        let expected = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 100, ty: 10)
+        for corner in [CGPoint(x: 0, y: 0), CGPoint(x: 40, y: 0), CGPoint(x: 0, y: 30), CGPoint(x: 40, y: 30)] {
+            let converted = spriteLayer.contentLayer.convert(corner, to: renderer.canvasLayer)
+            let upstream = CGPoint(x: 10 + corner.x, y: 20 + corner.y).applying(expected)
+            XCTAssertEqual(converted.x, upstream.x, accuracy: 0.001)
+            XCTAssertEqual(converted.y, upstream.y, accuracy: 0.001)
+        }
+        // Bounding box of T applied to layout (10, 20, 40, 30): x ∈ [50, 80], y ∈ [20, 60].
+        XCTAssertEqual(spriteLayer.contentLayer.frame, CGRect(x: 50, y: 20, width: 30, height: 40))
     }
 
     func testSingleMatteMasksContentAndMatteSpriteIsNotDirectlyDisplayed() async throws {

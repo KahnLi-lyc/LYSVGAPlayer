@@ -68,9 +68,12 @@ final class LYSVGASpriteLayer: CALayer {
 
         isHidden = false
         opacity = Float(min(frame.alpha, 1))
+        // Match SVGAPlayer-iOS: a local point p maps to transform · (layout.origin + p).
         contentLayer.bounds = CGRect(origin: .zero, size: layout.size)
-        contentLayer.position = layout.origin
-        contentLayer.setAffineTransform(transform)
+        contentLayer.position = .zero
+        contentLayer.setAffineTransform(
+            CGAffineTransform(translationX: layout.minX, y: layout.minY).concatenating(transform)
+        )
 
         vectorLayer?.position = .zero
         vectorLayer?.display(frame: index, contentSize: layout.size)
