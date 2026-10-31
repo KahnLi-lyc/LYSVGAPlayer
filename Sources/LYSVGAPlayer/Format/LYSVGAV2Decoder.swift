@@ -2,18 +2,37 @@ import Foundation
 import SwiftProtobuf
 
 enum LYSVGAV2Decoder {
-    static func decode(_ protobufData: Data, resourceDirectory: URL? = nil) throws -> LYSVGAVideo {
-        try decode(protobufData, resourceDirectory: resourceDirectory, resources: nil)
+    static func decode(
+        _ protobufData: Data,
+        resourceDirectory: URL? = nil,
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> LYSVGAVideo {
+        try decode(
+            protobufData,
+            resourceDirectory: resourceDirectory,
+            resources: nil,
+            faultTolerance: faultTolerance
+        )
     }
 
-    static func decode(_ protobufData: Data, resources: [String: Data]) throws -> LYSVGAVideo {
-        try decode(protobufData, resourceDirectory: nil, resources: resources)
+    static func decode(
+        _ protobufData: Data,
+        resources: [String: Data],
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> LYSVGAVideo {
+        try decode(
+            protobufData,
+            resourceDirectory: nil,
+            resources: resources,
+            faultTolerance: faultTolerance
+        )
     }
 
     private static func decode(
         _ protobufData: Data,
         resourceDirectory: URL?,
-        resources: [String: Data]?
+        resources: [String: Data]?,
+        faultTolerance: LYSVGAFaultTolerance
     ) throws -> LYSVGAVideo {
         try Task.checkCancellation()
         let movie: Com_Opensource_Svga_MovieEntity
@@ -25,16 +44,23 @@ enum LYSVGAV2Decoder {
         try Task.checkCancellation()
 
         let audioKeys = movie.audios.map(\.audioKey)
+        var warnings: [LYSVGAWarning] = []
         var images: [String: Data] = [:]
         var audioData: [String: Data] = [:]
         for (key, value) in movie.images {
             try Task.checkCancellation()
-            let resolved = try resolve(
-                value,
-                key: key,
-                resourceDirectory: resourceDirectory,
-                resources: resources
-            )
+            let resolved: Data
+            do {
+                resolved = try resolve(
+                    value,
+                    key: key,
+                    resourceDirectory: resourceDirectory,
+                    resources: resources
+                )
+            } catch LYSVGAError.missingResource(_) where faultTolerance == .lenient {
+                warnings.append(.missingResource(key: key))
+                continue
+            }
             if let audioKey = audioKeys.first(where: { resourceKey(key, matchesAudioKey: $0) }) {
                 audioData[audioKey] = resolved
             } else {
@@ -59,6 +85,12 @@ enum LYSVGAV2Decoder {
             )
         }
 
+        let sanitized = LYSVGAModelSanitizer.sanitize(
+            sprites: sprites,
+            audios: audios,
+            frameCount: Int(movie.params.frames),
+            faultTolerance: faultTolerance
+        )
         return try LYSVGAVideo(
             version: movie.version,
             canvasSize: LYSVGASize(
@@ -69,9 +101,9 @@ enum LYSVGAV2Decoder {
             frameCount: Int(movie.params.frames),
             images: images,
             audioData: audioData,
-            sprites: sprites,
-            audios: audios
-        )
+            sprites: sanitized.sprites,
+            audios: sanitized.audios
+        ).withWarnings(warnings + sanitized.warnings)
     }
 
     private static func mapFrame(_ frame: Com_Opensource_Svga_FrameEntity) -> LYSVGAFrame {

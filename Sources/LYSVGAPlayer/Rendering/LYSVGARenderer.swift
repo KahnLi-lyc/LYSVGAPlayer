@@ -28,11 +28,19 @@ final class LYSVGARenderer {
         imagePreheatTask?.cancel()
     }
 
-    func prepare(video: LYSVGAVideo) async throws {
+    @discardableResult
+    func prepare(
+        video: LYSVGAVideo,
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) async throws -> [LYSVGAWarning] {
         cancelImagePreheat()
-        let images = try await LYSVGAImagePreparer.prepare(video)
-        buildLayerTree(video: video, images: images)
+        let preparation = try await LYSVGAImagePreparer.prepareReportingFailures(
+            video,
+            faultTolerance: faultTolerance
+        )
+        buildLayerTree(video: video, images: preparation.images)
         startImagePreheat(for: video)
+        return preparation.failedKeys.map { .imageDecodingFailed(key: $0) }
     }
 
     func cancelImagePreheat() {
@@ -224,7 +232,8 @@ final class LYSVGARenderer {
         let revision = imagePreheatRevision
         imagePreheatTask = Task(priority: .utility) { [weak self] in
             do {
-                let images = try await LYSVGAImagePreparer.prepareEagerly(video)
+                // Images that already failed in the first stage stay absent; keep the rest.
+                let images = try await LYSVGAImagePreparer.prepareEagerly(video, faultTolerance: .lenient)
                 try Task.checkCancellation()
                 guard let self, imagePreheatRevision == revision else { return }
                 installPreheatedImages(images)
@@ -240,7 +249,8 @@ final class LYSVGARenderer {
         withoutAnimations {
             for layer in spriteLayers + additionalMatteLayers {
                 let key = LYSVGAResourceKey.canonicalize(layer.imageKeyForDynamicContent)
-                layer.replaceOriginalImage(images[key]?.cgImage)
+                guard let image = images[key]?.cgImage else { continue }
+                layer.replaceOriginalImage(image)
             }
         }
     }

@@ -131,6 +131,11 @@ public protocol LYSVGAPlayerViewDelegate: AnyObject {
     func playerView(_ playerView: LYSVGAPlayerView, didCrossLoops count: UInt)
     func playerViewDidFinish(_ playerView: LYSVGAPlayerView)
     func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError)
+
+    /// Reports resources that were skipped while loading a video in ``LYSVGAFaultTolerance/lenient`` mode.
+    ///
+    /// Called at most once per installed video, after it becomes `.ready` and before autoplay starts.
+    func playerView(_ playerView: LYSVGAPlayerView, didEncounterWarnings warnings: [LYSVGAWarning])
 }
 
 public extension LYSVGAPlayerViewDelegate {
@@ -139,6 +144,7 @@ public extension LYSVGAPlayerViewDelegate {
     func playerView(_ playerView: LYSVGAPlayerView, didCrossLoops count: UInt) {}
     func playerViewDidFinish(_ playerView: LYSVGAPlayerView) {}
     func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError) {}
+    func playerView(_ playerView: LYSVGAPlayerView, didEncounterWarnings warnings: [LYSVGAWarning]) {}
 }
 
 @MainActor
@@ -154,6 +160,13 @@ public class LYSVGAPlayerView: UIView {
     public private(set) var currentProgress = 0.0
     public private(set) var video: LYSVGAVideo?
     public private(set) var isReversePlayback = false
+
+    /// Warnings collected while installing the current video; empty after `clear()`.
+    public private(set) var warnings: [LYSVGAWarning] = []
+
+    /// How image and audio preparation failures are handled. Defaults to `.lenient`,
+    /// which skips broken resources like SVGAPlayer-iOS and reports them as warnings.
+    public var faultTolerance: LYSVGAFaultTolerance = .lenient
 
     public override var contentMode: UIView.ContentMode {
         didSet { setNeedsLayout() }
@@ -432,6 +445,7 @@ public class LYSVGAPlayerView: UIView {
         timeline = nil
         playbackRange = nil
         video = nil
+        warnings = []
         currentFrame = nil
         currentProgress = 0
         isReversePlayback = false
@@ -596,6 +610,7 @@ private extension LYSVGAPlayerView {
         autoplay: Bool
     ) async throws {
         let candidate = candidateFactory()
+        let faultTolerance = self.faultTolerance
         var ownsCandidate = true
 
         do {
@@ -604,14 +619,20 @@ private extension LYSVGAPlayerView {
                 try await preparationHook(video)
             }
             try ensureCurrent(generation: requestGeneration, revision: requestRevision)
-            try await candidate.renderer.prepare(video: video)
+            let renderWarnings = try await candidate.renderer.prepare(
+                video: video,
+                faultTolerance: faultTolerance
+            )
             try ensureCurrent(generation: requestGeneration, revision: requestRevision)
 
             let preparedPlaybackRate = playbackRate
             candidate.audioScheduler.playbackRate = preparedPlaybackRate
             candidate.audioScheduler.audioVolume = audioVolume
             candidate.audioScheduler.isMuted = isMuted
-            try candidate.audioScheduler.prepare(video: video)
+            let audioWarnings = try candidate.audioScheduler.prepare(
+                video: video,
+                faultTolerance: faultTolerance
+            )
             try Task.checkCancellation()
             try ensureCurrent(generation: requestGeneration, revision: requestRevision)
             if autoplay {
@@ -633,6 +654,14 @@ private extension LYSVGAPlayerView {
             ownsCandidate = false
             guard installationRemainsCurrent else {
                 throw LYSVGAError.cancelled
+            }
+            let collectedWarnings = video.warnings + renderWarnings + audioWarnings
+            warnings = collectedWarnings
+            if collectedWarnings.isEmpty == false {
+                delegate?.playerView(self, didEncounterWarnings: collectedWarnings)
+                guard isCurrent(revision: requestRevision, generation: requestGeneration) else {
+                    throw LYSVGAError.cancelled
+                }
             }
             if autoplay {
                 try play(range: nil, reverse: false, revision: requestRevision)
@@ -665,6 +694,7 @@ private extension LYSVGAPlayerView {
         renderer = candidate.renderer
         audioScheduler = candidate.audioScheduler
         self.video = video
+        warnings = []
         timeline = nil
         playbackRange = nil
         isReversePlayback = false

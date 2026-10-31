@@ -227,6 +227,64 @@ final class LYSVGAFormatDecoderTests: XCTestCase {
         }
     }
 
+    func testLenientV2SkipsMissingResourcesAndRepairsModel() throws {
+        var movie = makeV2Movie()
+        movie.images = [
+            "missing.png": Data("missing".utf8),
+            "present.png": Data("present".utf8),
+        ]
+        var frame = Com_Opensource_Svga_FrameEntity()
+        frame.alpha = 1
+        var sprite = Com_Opensource_Svga_SpriteEntity()
+        sprite.imageKey = "present"
+        sprite.frames = [frame, frame, frame]
+        movie.sprites = [sprite]
+        var invalidCue = Com_Opensource_Svga_AudioEntity()
+        invalidCue.audioKey = "bad-cue"
+        invalidCue.startFrame = 5
+        invalidCue.endFrame = 1
+        movie.audios = [invalidCue]
+        let resources = ["present.png": Data("png".utf8)]
+
+        XCTAssertThrowsError(try LYSVGAV2Decoder.decode(movie.serializedData(), resources: resources)) {
+            guard case .missingResource = $0 as? LYSVGAError else {
+                return XCTFail("Expected missingResource, got \($0)")
+            }
+        }
+
+        let video = try LYSVGAV2Decoder.decode(
+            movie.serializedData(),
+            resources: resources,
+            faultTolerance: .lenient
+        )
+        XCTAssertEqual(video.images["present"], Data("png".utf8))
+        XCTAssertNil(video.images["missing"])
+        XCTAssertEqual(video.sprites[0].frames.count, 1)
+        XCTAssertTrue(video.audios.isEmpty)
+        XCTAssertEqual(video.warnings, [
+            .missingResource(key: "missing.png"),
+            .spriteFramesTrimmed(imageKey: "present", frameCount: 3),
+            .invalidAudioCueSkipped(audioKey: "bad-cue"),
+        ])
+    }
+
+    func testLenientV1SkipsMissingImages() throws {
+        let json = Data(#"""
+        {
+          "ver":"1.1.0",
+          "movie":{"viewBox":{"width":10,"height":10},"fps":20,"frames":1},
+          "images":{"present":"image","missing":"absent"},
+          "sprites":[]
+        }
+        """#.utf8)
+        let resources = ["image.png": Data("png".utf8)]
+
+        XCTAssertThrowsError(try LYSVGAV1Decoder.decode(json, resources: resources))
+        let video = try LYSVGAV1Decoder.decode(json, resources: resources, faultTolerance: .lenient)
+        XCTAssertEqual(video.images["present"], Data("png".utf8))
+        XCTAssertEqual(video.warnings, [.missingResource(key: "missing")])
+    }
+
     func testShortAndCorruptDataAlwaysThrowSpecificErrors() throws {
         XCTAssertThrowsError(try LYSVGAFormatDecoder.decode(Data([0x50, 0x4B]))) { error in
             XCTAssertEqual(error as? LYSVGAError, .dataTooShort(actual: 2, minimum: 4))

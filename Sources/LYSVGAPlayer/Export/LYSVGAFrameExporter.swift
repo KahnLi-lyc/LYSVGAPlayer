@@ -7,12 +7,16 @@ public final class LYSVGAFrameExporter {
 
     private let renderer: LYSVGARenderer
 
-    public init(video: LYSVGAVideo) async throws {
+    /// Resources skipped while preparing the exporter (images that could not be decoded).
+    public let warnings: [LYSVGAWarning]
+
+    public init(video: LYSVGAVideo, faultTolerance: LYSVGAFaultTolerance = .lenient) async throws {
         self.video = video
         let renderer = LYSVGARenderer()
         self.renderer = renderer
         do {
-            try await renderer.prepare(video: video)
+            let renderWarnings = try await renderer.prepare(video: video, faultTolerance: faultTolerance)
+            warnings = video.warnings + renderWarnings
         } catch is CancellationError {
             throw LYSVGAError.cancelled
         }

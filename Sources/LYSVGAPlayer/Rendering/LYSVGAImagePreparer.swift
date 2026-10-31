@@ -13,6 +13,12 @@ struct LYSVGAPreparedImage: @unchecked Sendable {
     }
 }
 
+struct LYSVGAImagePreparation: Sendable {
+    let images: [String: LYSVGAPreparedImage]
+    /// Canonical keys whose data could not be decoded (only populated in lenient mode).
+    let failedKeys: [String]
+}
+
 enum LYSVGAImagePreparer {
     private enum PixelCachePolicy: Sendable {
         case deferred
@@ -41,18 +47,40 @@ enum LYSVGAImagePreparer {
         checkpoint: (@Sendable () async -> Void)? = nil
     ) async throws -> [String: LYSVGAPreparedImage] {
         try Task.checkCancellation()
-        return try await prepareImmediately(canonicalSources(in: video), checkpoint: checkpoint)
+        return try await prepareImmediately(
+            canonicalSources(in: video),
+            checkpoint: checkpoint,
+            faultTolerance: .strict
+        ).images
     }
 
+    /// Prepares every image; in lenient mode undecodable images are skipped and reported.
     @concurrent
-    static func prepareEagerly(_ video: LYSVGAVideo) async throws -> [String: LYSVGAPreparedImage] {
+    static func prepareReportingFailures(
+        _ video: LYSVGAVideo,
+        faultTolerance: LYSVGAFaultTolerance
+    ) async throws -> LYSVGAImagePreparation {
         try Task.checkCancellation()
         return try await prepareImmediately(
             canonicalSources(in: video),
             checkpoint: nil,
+            faultTolerance: faultTolerance
+        )
+    }
+
+    @concurrent
+    static func prepareEagerly(
+        _ video: LYSVGAVideo,
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) async throws -> [String: LYSVGAPreparedImage] {
+        try Task.checkCancellation()
+        return try await prepareImmediately(
+            canonicalSources(in: video),
+            checkpoint: nil,
+            faultTolerance: faultTolerance,
             pixelCachePolicy: .eager,
             readsCache: false
-        )
+        ).images
     }
 
     private static func canonicalSources(in video: LYSVGAVideo) -> [String: Data] {
@@ -68,12 +96,13 @@ enum LYSVGAImagePreparer {
     private static func prepareImmediately(
         _ sources: [String: Data],
         checkpoint: (@Sendable () async -> Void)?,
+        faultTolerance: LYSVGAFaultTolerance,
         pixelCachePolicy: PixelCachePolicy = .deferred,
         readsCache: Bool = true
-    ) async throws -> [String: LYSVGAPreparedImage] {
+    ) async throws -> LYSVGAImagePreparation {
         return try await withThrowingTaskGroup(
-            of: (String, LYSVGAPreparedImage).self,
-            returning: [String: LYSVGAPreparedImage].self
+            of: (String, LYSVGAPreparedImage?).self,
+            returning: LYSVGAImagePreparation.self
         ) { group in
             for (key, data) in sources {
                 group.addTask {
@@ -86,12 +115,17 @@ enum LYSVGAImagePreparer {
                     }
                     await checkpoint?()
                     try Task.checkCancellation()
-                    let image = try decode(
-                        data,
-                        key: key,
-                        options: pixelCachePolicy == .eager ? eagerDecodeOptions : decodeOptions,
-                        isPixelDecoded: pixelCachePolicy == .eager
-                    )
+                    let image: LYSVGAPreparedImage
+                    do {
+                        image = try decode(
+                            data,
+                            key: key,
+                            options: pixelCachePolicy == .eager ? eagerDecodeOptions : decodeOptions,
+                            isPixelDecoded: pixelCachePolicy == .eager
+                        )
+                    } catch LYSVGAError.imagePreparationFailure(_) where faultTolerance == .lenient {
+                        return (key, nil)
+                    }
                     try Task.checkCancellation()
                     let resultImage = checkpoint == nil
                         ? cache.insertPreferred(image, for: data)
@@ -102,12 +136,17 @@ enum LYSVGAImagePreparer {
             }
 
             var result: [String: LYSVGAPreparedImage] = [:]
+            var failedKeys: [String] = []
             result.reserveCapacity(sources.count)
             for try await (key, image) in group {
-                result[key] = image
+                if let image {
+                    result[key] = image
+                } else {
+                    failedKeys.append(key)
+                }
             }
             try Task.checkCancellation()
-            return result
+            return LYSVGAImagePreparation(images: result, failedKeys: failedKeys.sorted())
         }
     }
 

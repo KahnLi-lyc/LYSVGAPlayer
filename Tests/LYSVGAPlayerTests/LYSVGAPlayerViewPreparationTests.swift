@@ -79,6 +79,7 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
                 : LYSVGAAudioScheduler(factory: failingFactory)
             return LYSVGAPlayerPreparationCandidate(renderer: LYSVGARenderer(), audioScheduler: scheduler)
         })
+        view.faultTolerance = .strict
         let installedVideo = try preparationVideo(version: "installed")
         try await view.setVideo(installedVideo)
         let installedLayer = view.rendererRootLayerForTesting
@@ -116,6 +117,7 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
                 audioScheduler: LYSVGAAudioScheduler(factory: failingFactory)
             )
         })
+        view.faultTolerance = .strict
         view.delegate = delegate
 
         do {
@@ -140,6 +142,7 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
                 audioScheduler: LYSVGAAudioScheduler(factory: failingFactory)
             )
         })
+        view.faultTolerance = .strict
         delegate.onState = { playerView, state in
             guard state == .failed else { return }
             delegate.onState = nil
@@ -157,6 +160,34 @@ final class LYSVGAPlayerViewPreparationTests: XCTestCase {
         XCTAssertEqual(view.playbackState, .idle)
         XCTAssertNil(view.video)
         XCTAssertEqual(delegate.failureCount, 0)
+    }
+
+    func testLenientAudioFailureInstallsVideoAndReportsWarningsOnce() async throws {
+        let failingFactory = FailingPreparationAudioFactory()
+        let delegate = PreparationDelegateSpy()
+        let view = LYSVGAPlayerView(candidateFactory: {
+            LYSVGAPlayerPreparationCandidate(
+                renderer: LYSVGARenderer(),
+                audioScheduler: LYSVGAAudioScheduler(factory: failingFactory)
+            )
+        })
+        XCTAssertEqual(view.faultTolerance, .lenient)
+        view.delegate = delegate
+        let video = try preparationAudioVideo(version: "lenient-audio")
+
+        try await view.setVideo(video)
+
+        XCTAssertEqual(view.playbackState, .ready)
+        XCTAssertEqual(view.video, video)
+        XCTAssertEqual(delegate.failureCount, 0)
+        XCTAssertEqual(delegate.reportedWarnings.count, 1)
+        guard case .audioUnavailable(audioKey: "audio", reason: _)? = delegate.reportedWarnings.first?.first else {
+            return XCTFail("Unexpected warnings: \(delegate.reportedWarnings)")
+        }
+        XCTAssertEqual(view.warnings, delegate.reportedWarnings.first)
+
+        view.clear()
+        XCTAssertEqual(view.warnings, [])
     }
 
     func testCurrentRequestTaskCancellationReportsCancelledOnceAndFails() async throws {
@@ -339,6 +370,12 @@ private final class PreparationDelegateSpy: LYSVGAPlayerViewDelegate {
 
     func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError) {
         failureCount += 1
+    }
+
+    private(set) var reportedWarnings: [[LYSVGAWarning]] = []
+
+    func playerView(_ playerView: LYSVGAPlayerView, didEncounterWarnings warnings: [LYSVGAWarning]) {
+        reportedWarnings.append(warnings)
     }
 }
 

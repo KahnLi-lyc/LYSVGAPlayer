@@ -60,6 +60,12 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
     public let sprites: [LYSVGASprite]
     public let audios: [LYSVGAAudioCue]
 
+    /// Recoverable problems skipped while decoding this movie in ``LYSVGAFaultTolerance/lenient`` mode.
+    ///
+    /// Warnings describe how the value was produced; they are not encoded and do not
+    /// participate in equality.
+    public internal(set) var warnings: [LYSVGAWarning] = []
+
     public var duration: TimeInterval {
         TimeInterval(frameCount) / TimeInterval(fps)
     }
@@ -105,6 +111,23 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
         self.audioData = audioData
         self.sprites = sprites
         self.audios = audios
+    }
+
+    func withWarnings(_ warnings: [LYSVGAWarning]) -> LYSVGAVideo {
+        var copy = self
+        copy.warnings = warnings
+        return copy
+    }
+
+    public static func == (lhs: LYSVGAVideo, rhs: LYSVGAVideo) -> Bool {
+        lhs.version == rhs.version
+            && lhs.canvasSize == rhs.canvasSize
+            && lhs.fps == rhs.fps
+            && lhs.frameCount == rhs.frameCount
+            && lhs.images == rhs.images
+            && lhs.audioData == rhs.audioData
+            && lhs.sprites == rhs.sprites
+            && lhs.audios == rhs.audios
     }
 
     public init(from decoder: Decoder) throws {

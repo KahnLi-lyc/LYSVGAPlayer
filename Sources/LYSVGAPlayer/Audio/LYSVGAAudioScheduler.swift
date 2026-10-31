@@ -43,38 +43,28 @@ final class LYSVGAAudioScheduler {
         self.factory = factory
     }
 
-    func prepare(video: LYSVGAVideo) throws {
+    /// Creates one player per audio cue.
+    ///
+    /// In strict mode the first failure throws and no player is kept. In lenient mode the
+    /// failing cue is skipped and reported, matching SVGAPlayer-iOS which plays without it.
+    @discardableResult
+    func prepare(
+        video: LYSVGAVideo,
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> [LYSVGAWarning] {
         clear()
         fps = video.fps
 
         var preparedEntries: [Entry] = []
+        var warnings: [LYSVGAWarning] = []
         do {
             for cue in video.audios {
-                guard let data = video.audioData[cue.audioKey] else {
-                    throw LYSVGAError.audioPreparationFailure(
-                        audioKey: cue.audioKey,
-                        reason: "Audio data is missing."
-                    )
-                }
-
-                let player: any LYSVGAAudioPlaying
                 do {
-                    player = try factory.makePlayer(data: data)
-                } catch {
-                    throw LYSVGAError.audioPreparationFailure(
-                        audioKey: cue.audioKey,
-                        reason: error.localizedDescription
-                    )
+                    preparedEntries.append(Entry(cue: cue, player: try makePreparedPlayer(for: cue, in: video)))
+                } catch LYSVGAError.audioPreparationFailure(let audioKey, let reason)
+                    where faultTolerance == .lenient {
+                    warnings.append(.audioUnavailable(audioKey: audioKey, reason: reason))
                 }
-                configure(player)
-                guard player.prepareToPlay() else {
-                    player.stop()
-                    throw LYSVGAError.audioPreparationFailure(
-                        audioKey: cue.audioKey,
-                        reason: "Audio player preparation failed."
-                    )
-                }
-                preparedEntries.append(Entry(cue: cue, player: player))
             }
         } catch {
             preparedEntries.forEach { $0.player.stop() }
@@ -82,6 +72,35 @@ final class LYSVGAAudioScheduler {
         }
 
         entries = preparedEntries
+        return warnings
+    }
+
+    private func makePreparedPlayer(for cue: LYSVGAAudioCue, in video: LYSVGAVideo) throws -> any LYSVGAAudioPlaying {
+        guard let data = video.audioData[cue.audioKey] else {
+            throw LYSVGAError.audioPreparationFailure(
+                audioKey: cue.audioKey,
+                reason: "Audio data is missing."
+            )
+        }
+
+        let player: any LYSVGAAudioPlaying
+        do {
+            player = try factory.makePlayer(data: data)
+        } catch {
+            throw LYSVGAError.audioPreparationFailure(
+                audioKey: cue.audioKey,
+                reason: error.localizedDescription
+            )
+        }
+        configure(player)
+        guard player.prepareToPlay() else {
+            player.stop()
+            throw LYSVGAError.audioPreparationFailure(
+                audioKey: cue.audioKey,
+                reason: "Audio player preparation failed."
+            )
+        }
+        return player
     }
 
     func synchronize(frame: Int, reverse: Bool) {

@@ -1,8 +1,12 @@
 import Foundation
 
 enum LYSVGAV1Decoder {
-    static func decode(_ data: Data, resourceDirectory: URL) throws -> LYSVGAVideo {
-        try decode(data) { filename, key, fallbackExtension in
+    static func decode(
+        _ data: Data,
+        resourceDirectory: URL,
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> LYSVGAVideo {
+        try decode(data, faultTolerance: faultTolerance) { filename, key, fallbackExtension in
             try LYSVGAResourceResolver.resolve(
                 filename: filename,
                 key: key,
@@ -12,8 +16,12 @@ enum LYSVGAV1Decoder {
         }
     }
 
-    static func decode(_ data: Data, resources: [String: Data]) throws -> LYSVGAVideo {
-        try decode(data) { filename, key, fallbackExtension in
+    static func decode(
+        _ data: Data,
+        resources: [String: Data],
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> LYSVGAVideo {
+        try decode(data, faultTolerance: faultTolerance) { filename, key, fallbackExtension in
             try LYSVGAResourceResolver.resolve(
                 filename: filename,
                 key: key,
@@ -25,6 +33,7 @@ enum LYSVGAV1Decoder {
 
     private static func decode(
         _ data: Data,
+        faultTolerance: LYSVGAFaultTolerance,
         resolveResource: (_ filename: String, _ key: String, _ fallbackExtension: String?) throws -> Data
     ) throws -> LYSVGAVideo {
         let spec: V1Spec
@@ -35,10 +44,15 @@ enum LYSVGAV1Decoder {
         }
         try Task.checkCancellation()
 
+        var warnings: [LYSVGAWarning] = []
         var images: [String: Data] = [:]
         for (key, filename) in spec.images {
             try Task.checkCancellation()
-            images[LYSVGAResourceKey.canonicalize(key)] = try resolveResource(filename, key, "png")
+            do {
+                images[LYSVGAResourceKey.canonicalize(key)] = try resolveResource(filename, key, "png")
+            } catch LYSVGAError.missingResource(_) where faultTolerance == .lenient {
+                warnings.append(.missingResource(key: key))
+            }
         }
 
         var audioData: [String: Data] = [:]
@@ -55,13 +69,7 @@ enum LYSVGAV1Decoder {
             }
         }
 
-        return try LYSVGAVideo(
-            version: spec.ver,
-            canvasSize: LYSVGASize(width: spec.movie.viewBox.width, height: spec.movie.viewBox.height),
-            fps: spec.movie.fps,
-            frameCount: spec.movie.frames,
-            images: images,
-            audioData: audioData,
+        let sanitized = LYSVGAModelSanitizer.sanitize(
             sprites: spec.sprites.map(mapSprite),
             audios: spec.audios.map {
                 LYSVGAAudioCue(
@@ -71,8 +79,20 @@ enum LYSVGAV1Decoder {
                     startTime: $0.startTime,
                     totalTime: $0.totalTime
                 )
-            }
+            },
+            frameCount: spec.movie.frames,
+            faultTolerance: faultTolerance
         )
+        return try LYSVGAVideo(
+            version: spec.ver,
+            canvasSize: LYSVGASize(width: spec.movie.viewBox.width, height: spec.movie.viewBox.height),
+            fps: spec.movie.fps,
+            frameCount: spec.movie.frames,
+            images: images,
+            audioData: audioData,
+            sprites: sanitized.sprites,
+            audios: sanitized.audios
+        ).withWarnings(warnings + sanitized.warnings)
     }
 
     private static func mapSprite(_ sprite: V1Sprite) -> LYSVGASprite {

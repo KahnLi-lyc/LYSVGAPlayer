@@ -16,17 +16,20 @@ enum LYSVGAFormatDecoder {
         return data.starts(with: [0x50, 0x4B]) ? .zip : .zlib
     }
 
-    static func decode(_ data: Data) throws -> LYSVGAVideo {
+    static func decode(_ data: Data, faultTolerance: LYSVGAFaultTolerance = .strict) throws -> LYSVGAVideo {
         try Task.checkCancellation()
         switch try detect(data) {
         case .zip:
-            return try decodeArchive(data)
+            return try decodeArchive(data, faultTolerance: faultTolerance)
         case .zlib:
-            return try LYSVGAV2Decoder.decode(LYSVGACompression.inflateZlib(data))
+            return try LYSVGAV2Decoder.decode(
+                LYSVGACompression.inflateZlib(data),
+                faultTolerance: faultTolerance
+            )
         }
     }
 
-    private static func decodeArchive(_ data: Data) throws -> LYSVGAVideo {
+    private static func decodeArchive(_ data: Data, faultTolerance: LYSVGAFaultTolerance) throws -> LYSVGAVideo {
         var resources: [String: Data] = [:]
         do {
             let archive = try Archive(data: data, accessMode: .read)
@@ -63,15 +66,18 @@ enum LYSVGAFormatDecoder {
         }
 
         try Task.checkCancellation()
-        return try decodeArchiveResources(resources)
+        return try decodeArchiveResources(resources, faultTolerance: faultTolerance)
     }
 
-    static func decodeArchiveResources(_ resources: [String: Data]) throws -> LYSVGAVideo {
+    static func decodeArchiveResources(
+        _ resources: [String: Data],
+        faultTolerance: LYSVGAFaultTolerance = .strict
+    ) throws -> LYSVGAVideo {
         if let protobuf = resources["movie.binary"] {
-            return try LYSVGAV2Decoder.decode(protobuf, resources: resources)
+            return try LYSVGAV2Decoder.decode(protobuf, resources: resources, faultTolerance: faultTolerance)
         }
         if let json = resources["movie.spec"] {
-            return try LYSVGAV1Decoder.decode(json, resources: resources)
+            return try LYSVGAV1Decoder.decode(json, resources: resources, faultTolerance: faultTolerance)
         }
         throw LYSVGAError.invalidData("The archive contains neither movie.spec nor movie.binary.")
     }

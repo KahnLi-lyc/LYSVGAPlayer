@@ -46,6 +46,34 @@ final class LYSVGAAudioSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.preparedPlayerCount, 0)
     }
 
+    func testLenientPrepareSkipsFailingCuesAndKeepsHealthyPlayers() throws {
+        let factory = FakeAudioPlayerFactory()
+        let scheduler = LYSVGAAudioScheduler(factory: factory)
+
+        let warnings = try scheduler.prepare(
+            video: video(
+                cues: [cue(key: "missing"), cue(key: "healthy")],
+                audioData: ["healthy": Data([1])]
+            ),
+            faultTolerance: .lenient
+        )
+
+        XCTAssertEqual(warnings, [.audioUnavailable(audioKey: "missing", reason: "Audio data is missing.")])
+        XCTAssertEqual(scheduler.preparedPlayerCount, 1)
+
+        factory.prepareSucceeds = false
+        let unpreparedWarnings = try scheduler.prepare(
+            video: video(cues: [cue(key: "unprepared")], audioData: ["unprepared": Data([3])]),
+            faultTolerance: .lenient
+        )
+        XCTAssertEqual(
+            unpreparedWarnings,
+            [.audioUnavailable(audioKey: "unprepared", reason: "Audio player preparation failed.")]
+        )
+        XCTAssertEqual(factory.players.last?.stopCallCount, 1)
+        XCTAssertEqual(scheduler.preparedPlayerCount, 0)
+    }
+
     func testForwardSynchronizationUsesOffsetDurationClampAndExclusiveEndFrame() throws {
         let factory = FakeAudioPlayerFactory(duration: 1)
         let scheduler = LYSVGAAudioScheduler(factory: factory)

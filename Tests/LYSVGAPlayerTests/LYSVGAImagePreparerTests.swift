@@ -32,6 +32,25 @@ final class LYSVGAImagePreparerTests: XCTestCase {
         }
     }
 
+    func testLenientPreparationSkipsCorruptImagesAndKeepsValidOnes() async throws {
+        let video = try makeVideo(images: [
+            "broken.png": Data("not-an-image".utf8),
+            "pixel.png": validPNG,
+        ])
+
+        let lenient = try await LYSVGAImagePreparer.prepareReportingFailures(video, faultTolerance: .lenient)
+        XCTAssertNotNil(lenient.images["pixel"])
+        XCTAssertNil(lenient.images["broken"])
+        XCTAssertEqual(lenient.failedKeys, ["broken"])
+
+        do {
+            _ = try await LYSVGAImagePreparer.prepareReportingFailures(video, faultTolerance: .strict)
+            XCTFail("Strict preparation must fail.")
+        } catch {
+            XCTAssertEqual(error as? LYSVGAError, .imagePreparationFailure("broken"))
+        }
+    }
+
     func testTruncatedPNGWithRecognizableContainerThrowsPreparationFailure() async throws {
         let truncatedPNG = Data(validPNG.prefix(33))
         let source = try XCTUnwrap(CGImageSourceCreateWithData(truncatedPNG as CFData, nil))

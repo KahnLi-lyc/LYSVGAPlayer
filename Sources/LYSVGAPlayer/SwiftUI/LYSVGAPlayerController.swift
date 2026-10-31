@@ -8,6 +8,8 @@ public final class LYSVGAPlayerController: NSObject, ObservableObject {
     @Published public private(set) var currentFrame: Int?
     @Published public private(set) var currentProgress: Double
     @Published public private(set) var lastError: LYSVGAError?
+    /// Resources skipped while installing the current video in lenient mode.
+    @Published public private(set) var lastWarnings: [LYSVGAWarning] = []
 
     public let playerView: LYSVGAPlayerView
     public weak var delegate: (any LYSVGAPlayerViewDelegate)?
@@ -42,6 +44,11 @@ public final class LYSVGAPlayerController: NSObject, ObservableObject {
     public var audioVolume: Double {
         get { playerView.audioVolume }
         set { playerView.audioVolume = newValue }
+    }
+
+    public var faultTolerance: LYSVGAFaultTolerance {
+        get { playerView.faultTolerance }
+        set { playerView.faultTolerance = newValue }
     }
 
     public var displayLinkRunLoopMode: RunLoop.Mode {
@@ -120,6 +127,9 @@ extension LYSVGAPlayerController: LYSVGAPlayerViewDelegate {
         currentProgress = playerView.currentProgress
         if state == .loading {
             lastError = nil
+            lastWarnings = []
+        } else if state == .idle {
+            lastWarnings = []
         }
         delegate?.playerView(playerView, didChangePlaybackState: state)
     }
@@ -145,5 +155,10 @@ extension LYSVGAPlayerController: LYSVGAPlayerViewDelegate {
     public func playerView(_ playerView: LYSVGAPlayerView, didFailWith error: LYSVGAError) {
         lastError = error
         delegate?.playerView(playerView, didFailWith: error)
+    }
+
+    public func playerView(_ playerView: LYSVGAPlayerView, didEncounterWarnings warnings: [LYSVGAWarning]) {
+        lastWarnings = warnings
+        delegate?.playerView(playerView, didEncounterWarnings: warnings)
     }
 }

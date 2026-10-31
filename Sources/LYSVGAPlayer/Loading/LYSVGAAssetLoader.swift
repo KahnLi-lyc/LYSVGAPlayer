@@ -23,14 +23,19 @@ public actor LYSVGAAssetLoader {
     private let decoder: LYSVGAAssetDecoder
     private var requests: [String: SharedRequest] = [:]
 
+    /// - Parameter faultTolerance: `.lenient` (default) skips missing archive resources and
+    ///   repairs inconsistent frame counts or audio cues, recording them in `LYSVGAVideo.warnings`.
+    ///   `.strict` rejects such files. The memory cache belongs to this loader, so loaders with
+    ///   different policies never share decoded videos.
     public init(
         session: URLSession = .shared,
-        cacheConfiguration: LYSVGACacheConfiguration = .default
+        cacheConfiguration: LYSVGACacheConfiguration = .default,
+        faultTolerance: LYSVGAFaultTolerance = .lenient
     ) {
         self.session = session
         cache = LYSVGACache(configuration: cacheConfiguration)
         reader = Self.read
-        decoder = LYSVGAFormatDecoder.decode
+        decoder = { data in try LYSVGAFormatDecoder.decode(data, faultTolerance: faultTolerance) }
     }
 
     init(
