@@ -133,7 +133,7 @@ final class LYSVGARendererTests: XCTestCase {
         XCTAssertPixel(image, x: 15, y: 10, rgba: (0, 255, 0, 255), tolerance: 3)
     }
 
-    func testVectorDescriptorsCompileLazilyAndCacheResolvedFrames() async throws {
+    func testVectorDescriptorsArePrecompiledOncePerResolvedFrame() async throws {
         let first = LYSVGAShape(
             type: .rect(LYSVGAShapeRect(
                 rect: LYSVGARect(x: 0, y: 0, width: 5, height: 5),
@@ -159,15 +159,44 @@ final class LYSVGARendererTests: XCTestCase {
         ))
         let vectorLayer = try XCTUnwrap(renderer.spriteLayers[0].vectorLayer)
 
-        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 0)
+        // Frames 0 and 2 are compiled during prepare (off the main thread); the keep frame
+        // resolves to frame 0 and never compiles separately.
+        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 2)
         renderer.display(frame: 0)
-        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 1)
         renderer.display(frame: 1)
-        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 1)
         renderer.display(frame: 2)
-        XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 2)
         renderer.display(frame: 0)
         XCTAssertEqual(vectorLayer.compiledDescriptorFrameCount, 2)
+        XCTAssertEqual(vectorLayer.applicationCount, 3)
+    }
+
+    func testRendersOfTheSameVideoShareOneRenderPlan() async throws {
+        let shape = LYSVGAShape(
+            type: .path(LYSVGAShapePath(path: "M0 0 L5 0 L5 5 Z")),
+            style: LYSVGAShapeStyle(fill: LYSVGAColor(red: 1, green: 0, blue: 0, alpha: 1))
+        )
+        let video = try makeVideo(
+            width: 10,
+            height: 10,
+            frames: 1,
+            sprites: [LYSVGASprite(imageKey: "shared.vector", frames: [
+                frame(width: 10, height: 10, clipPath: "M0 0 H5 V5 H0 Z", shapes: [shape]),
+            ])]
+        )
+        let copy = video
+
+        let first = await LYSVGARenderPlan.shared(for: video)
+        let second = await LYSVGARenderPlan.shared(for: copy)
+        XCTAssertTrue(first === second)
+        XCTAssertNotNil(first.sprites[0].clipPaths[0])
+        XCTAssertEqual(first.sprites[0].vector?.descriptors[0]?.count, 1)
+
+        let renderer = LYSVGARenderer()
+        try await renderer.prepare(video: copy)
+        renderer.display(frame: 0)
+        XCTAssertFalse(try XCTUnwrap(renderer.spriteLayers[0].vectorLayer).shapeLayers[0].isHidden)
+        let afterPrepare = await LYSVGARenderPlan.shared(for: video)
+        XCTAssertTrue(afterPrepare === first)
     }
 
     func testVectorDescriptorsMapGeometryStyleAndKeepUsesStableShapePool() async throws {

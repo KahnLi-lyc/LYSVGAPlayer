@@ -66,6 +66,9 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
     /// participate in equality.
     public internal(set) var warnings: [LYSVGAWarning] = []
 
+    /// Shared lazily-built vector/clip geometry; copies of this value share the same box.
+    let renderPlanBox = LYSVGARenderPlanBox()
+
     public var duration: TimeInterval {
         TimeInterval(frameCount) / TimeInterval(fps)
     }

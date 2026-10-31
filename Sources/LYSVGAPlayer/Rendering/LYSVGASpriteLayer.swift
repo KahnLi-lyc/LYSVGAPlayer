@@ -8,8 +8,7 @@ final class LYSVGASpriteLayer: CALayer {
 
     private let sprite: LYSVGASprite
     private var originalImage: CGImage?
-    private var clipPaths: [Int: CGPath] = [:]
-    private var attemptedClipPathFrames: Set<Int> = []
+    private let clipPaths: [Int: CGPath]
     private var dynamicContent: LYSVGADynamicContentEntry?
     private(set) var dynamicTextLayerForTesting: CATextLayer?
     private var dynamicContentsScale: CGFloat = 1
@@ -20,12 +19,14 @@ final class LYSVGASpriteLayer: CALayer {
     init(
         sprite: LYSVGASprite,
         image: CGImage?,
-        canvasSize: CGSize
+        canvasSize: CGSize,
+        plan: LYSVGASpriteRenderPlan
     ) {
         self.sprite = sprite
         originalImage = image
+        clipPaths = plan.clipPaths
 
-        vectorLayer = LYSVGAVectorLayer(frames: sprite.frames, canvasSize: canvasSize)
+        vectorLayer = LYSVGAVectorLayer(plan: plan.vector, canvasSize: canvasSize)
         clipMaskLayer = sprite.frames.contains(where: { $0.clipPath != nil }) ? CAShapeLayer() : nil
         super.init()
 
@@ -80,7 +81,7 @@ final class LYSVGASpriteLayer: CALayer {
         contentLayer.contents = dynamicContent?.image?.cgImage ?? originalImage
         layoutDynamicText(in: contentLayer.bounds)
 
-        if let clipMaskLayer, let clipPath = clipPath(for: index) {
+        if let clipMaskLayer, let clipPath = clipPaths[index] {
             clipMaskLayer.bounds = CGRect(origin: .zero, size: layout.size)
             clipMaskLayer.position = .zero
             clipMaskLayer.path = clipPath
@@ -96,18 +97,6 @@ final class LYSVGASpriteLayer: CALayer {
         if dynamicContent?.isHidden == true {
             isHidden = true
         }
-    }
-
-    private func clipPath(for index: Int) -> CGPath? {
-        if let cached = clipPaths[index] { return cached }
-        guard attemptedClipPathFrames.insert(index).inserted,
-              sprite.frames.indices.contains(index),
-              let value = sprite.frames[index].clipPath,
-              let path = try? LYSVGASVGPathParser.parse(value) else {
-            return nil
-        }
-        clipPaths[index] = path
-        return path
     }
 
     func hide() {

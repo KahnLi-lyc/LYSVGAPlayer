@@ -34,11 +34,16 @@ final class LYSVGARenderer {
         faultTolerance: LYSVGAFaultTolerance = .strict
     ) async throws -> [LYSVGAWarning] {
         cancelImagePreheat()
+        // Vector/clip geometry compiles off the main thread in parallel with image preparation,
+        // and is shared by every renderer that displays the same decoded video.
+        async let plan = LYSVGARenderPlan.shared(for: video)
         let preparation = try await LYSVGAImagePreparer.prepareReportingFailures(
             video,
             faultTolerance: faultTolerance
         )
-        buildLayerTree(video: video, images: preparation.images)
+        let renderPlan = await plan
+        try Task.checkCancellation()
+        buildLayerTree(video: video, images: preparation.images, plan: renderPlan)
         startImagePreheat(for: video)
         return preparation.failedKeys.map { .imageDecodingFailed(key: $0) }
     }
@@ -143,7 +148,11 @@ final class LYSVGARenderer {
         }
     }
 
-    private func buildLayerTree(video: LYSVGAVideo, images: [String: LYSVGAPreparedImage]) {
+    private func buildLayerTree(
+        video: LYSVGAVideo,
+        images: [String: LYSVGAPreparedImage],
+        plan: LYSVGARenderPlan
+    ) {
         withoutAnimations {
             canvasLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
             canvasLayer.mask = nil
@@ -156,12 +165,13 @@ final class LYSVGARenderer {
 
             let canvasSize = CGSize(width: video.canvasSize.width, height: video.canvasSize.height)
             canvasLayer.bounds = CGRect(origin: .zero, size: canvasSize)
-            spriteLayers = video.sprites.map { sprite in
+            spriteLayers = zip(video.sprites, plan.sprites).map { sprite, spritePlan in
                 let key = LYSVGAResourceKey.canonicalize(sprite.imageKey)
                 return LYSVGASpriteLayer(
                     sprite: sprite,
                     image: images[key]?.cgImage,
-                    canvasSize: canvasSize
+                    canvasSize: canvasSize,
+                    plan: spritePlan
                 )
             }
 
@@ -205,7 +215,8 @@ final class LYSVGARenderer {
                         matteLayer = LYSVGASpriteLayer(
                             sprite: matteSprite,
                             image: image,
-                            canvasSize: canvasSize
+                            canvasSize: canvasSize,
+                            plan: plan.sprites[matteIndex]
                         )
                         additionalMatteLayers.append(matteLayer)
                     }

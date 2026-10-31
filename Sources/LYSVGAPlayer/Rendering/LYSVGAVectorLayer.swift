@@ -5,36 +5,18 @@ final class LYSVGAVectorLayer: CALayer {
     let shapeLayers: [CAShapeLayer]
     let resolvedFrameIndices: [Int?]
     private(set) var applicationCount = 0
-    var compiledDescriptorFrameCount: Int { compiledFrames.count }
+    var compiledDescriptorFrameCount: Int { plan.descriptors.count }
 
-    private let frames: [LYSVGAFrame]
-    private var compiledFrames: [Int: [LYSVGAShapeDescriptor]] = [:]
+    private let plan: LYSVGAVectorPlan
     private var appliedFrameIndex: Int?
 
-    init?(frames: [LYSVGAFrame], canvasSize: CGSize) {
-        var resolvedFrameIndices: [Int?] = []
-        var lastNonKeepFrame: Int?
-        var maximumShapeCount = 0
+    /// Builds the reusable shape-layer pool from a precompiled plan; `nil` when there is nothing to draw.
+    init?(plan: LYSVGAVectorPlan?, canvasSize: CGSize) {
+        guard let plan, plan.maximumShapeCount > 0 else { return nil }
 
-        for (index, frame) in frames.enumerated() {
-            if frame.shapes.first?.isKeep == true {
-                resolvedFrameIndices.append(lastNonKeepFrame)
-                continue
-            }
-
-            resolvedFrameIndices.append(index)
-            lastNonKeepFrame = index
-            maximumShapeCount = max(
-                maximumShapeCount,
-                frame.shapes.lazy.filter(\.canProduceDescriptorWithoutPathParsing).count
-            )
-        }
-
-        guard maximumShapeCount > 0 else { return nil }
-
-        self.frames = frames
-        self.resolvedFrameIndices = resolvedFrameIndices
-        shapeLayers = (0..<maximumShapeCount).map { _ in CAShapeLayer() }
+        self.plan = plan
+        resolvedFrameIndices = plan.resolvedFrameIndices
+        shapeLayers = (0..<plan.maximumShapeCount).map { _ in CAShapeLayer() }
         super.init()
 
         anchorPoint = .zero
@@ -54,9 +36,12 @@ final class LYSVGAVectorLayer: CALayer {
     }
 
     func display(frame index: Int, contentSize: CGSize) {
-        bounds = CGRect(origin: .zero, size: contentSize)
-        for layer in shapeLayers {
-            layer.bounds = bounds
+        let contentBounds = CGRect(origin: .zero, size: contentSize)
+        if bounds != contentBounds {
+            bounds = contentBounds
+            for layer in shapeLayers {
+                layer.bounds = contentBounds
+            }
         }
         guard resolvedFrameIndices.indices.contains(index),
               let resolvedFrameIndex = resolvedFrameIndices[index] else {
@@ -64,13 +49,7 @@ final class LYSVGAVectorLayer: CALayer {
             return
         }
         guard appliedFrameIndex != resolvedFrameIndex else { return }
-        let descriptors: [LYSVGAShapeDescriptor]
-        if let cached = compiledFrames[resolvedFrameIndex] {
-            descriptors = cached
-        } else {
-            descriptors = frames[resolvedFrameIndex].shapes.compactMap(LYSVGAShapeDescriptor.init)
-            compiledFrames[resolvedFrameIndex] = descriptors
-        }
+        let descriptors = plan.descriptors[resolvedFrameIndex] ?? []
 
         for (shapeIndex, layer) in shapeLayers.enumerated() {
             guard descriptors.indices.contains(shapeIndex) else {
@@ -102,35 +81,5 @@ final class LYSVGAVectorLayer: CALayer {
         layer.lineDashPhase = descriptor.lineDashPhase
         layer.setAffineTransform(descriptor.transform)
         layer.isHidden = false
-    }
-}
-
-private extension LYSVGAShape {
-    var isKeep: Bool {
-        if case .keep = type { return true }
-        return false
-    }
-
-    var canProduceDescriptorWithoutPathParsing: Bool {
-        switch type {
-        case let .path(value):
-            return value.path.isEmpty == false
-        case let .rect(value):
-            return value.rect.finiteCGRect != nil && value.cornerRadius.isFinite
-        case let .ellipse(value):
-            guard value.centerX.isFinite, value.centerY.isFinite,
-                  value.radiusX.isFinite, value.radiusY.isFinite,
-                  value.radiusX >= 0, value.radiusY >= 0 else {
-                return false
-            }
-            return (value.centerX - value.radiusX).isFinite
-                && (value.centerY - value.radiusY).isFinite
-                && (value.centerX + value.radiusX).isFinite
-                && (value.centerY + value.radiusY).isFinite
-                && (value.radiusX * 2).isFinite
-                && (value.radiusY * 2).isFinite
-        case .keep:
-            return false
-        }
     }
 }

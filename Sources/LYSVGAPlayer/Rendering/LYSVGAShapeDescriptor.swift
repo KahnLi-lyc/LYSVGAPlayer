@@ -1,7 +1,7 @@
 import QuartzCore
-import UIKit
 
-struct LYSVGAShapeDescriptor {
+/// Immutable Core Graphics state for one shape; safe to build off the main thread.
+struct LYSVGAShapeDescriptor: @unchecked Sendable {
     let path: CGPath
     let fillColor: CGColor?
     let strokeColor: CGColor?
@@ -13,7 +13,6 @@ struct LYSVGAShapeDescriptor {
     let lineDashPhase: CGFloat
     let transform: CGAffineTransform
 
-    @MainActor
     init?(shape: LYSVGAShape) {
         guard let path = Self.makePath(shape.type) else {
             return nil
@@ -32,7 +31,6 @@ struct LYSVGAShapeDescriptor {
         transform = shape.transform.finiteAffineTransform ?? .identity
     }
 
-    @MainActor
     private static func makePath(_ type: LYSVGAShapeType) -> CGPath? {
         switch type {
         case let .path(value):
@@ -80,19 +78,18 @@ struct LYSVGAShapeDescriptor {
         }
     }
 
-    @MainActor
     private static func makeColor(_ color: LYSVGAColor?) -> CGColor? {
         guard let color,
               color.red.isFinite, color.green.isFinite,
               color.blue.isFinite, color.alpha.isFinite else {
             return nil
         }
-        return UIColor(
-            red: color.red.clampedToUnit,
+        return CGColor(
+            srgbRed: color.red.clampedToUnit,
             green: color.green.clampedToUnit,
             blue: color.blue.clampedToUnit,
             alpha: color.alpha.clampedToUnit
-        ).cgColor
+        )
     }
 
     private static func nonnegative(_ value: Double) -> CGFloat {
