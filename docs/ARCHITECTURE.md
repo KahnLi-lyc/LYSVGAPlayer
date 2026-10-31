@@ -75,7 +75,7 @@ flowchart TD
     Request --> Disk
 ```
 
-`LYSVGAAssetLoader` 是 actor。相同缓存 Key 的并发调用共享底层读取/解码任务，但每个调用者拥有独立 waiter；取消一个 waiter 不会取消其他调用者，最后一个 waiter 取消时才终止共享任务。
+`LYSVGAAssetLoader` 是 actor。内存未命中后，相同缓存 Key 与缓存策略的并发调用共享同一条完整管线（磁盘读取 → 读取源 → 解码 → 回填缓存），因此磁盘命中也只解码一次，缓存也只写一次；每个调用者拥有独立 waiter，取消一个 waiter 不会取消其他调用者，最后一个 waiter 取消时才终止共享任务。磁盘缓存写入是 best-effort：失败只记录日志，不影响已经成功的加载。
 
 缓存语义：
 
@@ -84,6 +84,20 @@ flowchart TD
 - `.memoryOnly`：只读取/写入内存模型。
 - `.noCache`：不读取、不写入缓存。
 - 磁盘缓存通过大小、TTL、访问时间和元数据校验管理；解码取消不会删除仍然有效的数据。
+- 只有 `.remote` 与 `.request` 使用磁盘缓存；`.data` 与 `.file` 本身已在本地，只缓存解码后的内存模型。
+
+## 容错
+
+`LYSVGAFaultTolerance` 默认 `.lenient`，与上游一致地跳过损坏或缺失的资源，并以 `LYSVGAWarning` 报告：
+
+| 阶段 | lenient 行为 | Warning |
+| --- | --- | --- |
+| V1/V2 解码 | 跳过 ZIP/目录中缺失的图片 | `missingResource` |
+| 模型修复（`LYSVGAModelSanitizer`） | 裁剪帧数超过影片帧数的 Sprite；过滤 key 为空或区间非法的音频 cue | `spriteFramesTrimmed`、`invalidAudioCueSkipped` |
+| 图片准备 | 无法解码的图片不显示位图，其余照常 | `imageDecodingFailed` |
+| 音频准备 | 无法创建或准备的音频 cue 被跳过 | `audioUnavailable` |
+
+解码阶段的 Warning 存于 `LYSVGAVideo.warnings`（不参与编码和相等比较），播放器在视频进入 `.ready` 后、自动播放前通过 `playerView(_:didEncounterWarnings:)` 一次性回调全部 Warning。`.strict` 保留“任一资源失败即整体失败”的语义。内部组件 API 默认 strict，公开入口（Loader、PlayerView、Exporter）默认 lenient。
 
 ZIP 若同时包含 `movie.binary` 与 `movie.spec`，优先解析 Protobuf，只有缺少 binary 时才回退 JSON；这与上游 2.5.8 一致，也避免对同一动画重复走体积更大的 JSON 路径。V2 zlib 使用流式解压并校验 CMF/FLG、字典标记、完整输入、Adler-32、尾随数据和 256 MiB 输出上限。ZIP 路径拒绝目录穿越和符号链接逃逸。
 
@@ -132,7 +146,9 @@ LYSVGARootLayer
 - matte 可见性与动态内容；
 - Drawing Handler，执行顺序在标准帧属性更新之后。
 
-矢量层按 Sprite 的最大形状数量建立固定 `CAShapeLayer` 池。keep-frame 预先解析到最近有效形状帧，避免重复解析或逐帧创建层。
+矢量层按 Sprite 的最大形状数量建立固定 `CAShapeLayer` 池。`LYSVGARenderPlan` 在 Renderer 准备阶段、于 `@concurrent` 上下文与图片准备并行构建：keep-frame 预先解析到最近有效形状帧，每个有效帧的 `CGPath`/颜色/描边参数与 clipPath 一次性编译为不可变描述。播放期间主线程不再解析 SVG Path。Plan 存放在 `LYSVGAVideo` 内部的共享盒子中，同一个解码结果（包括内存缓存返回的副本）被多个播放器使用时只编译一次。
+
+Sprite 的 layout 与 transform 合成与上游一致：本地点 `p` 映射到 `transform · (layout.origin + p)`。矢量形状与 clipPath 使用 Sprite 本地坐标。虚线规则与上游一致：前两个值任一大于 0 时才设置 pattern，并钳制到 `>= 1`、`>= 0.1`，第三个值为 phase。
 
 matte 源可以被多个不连续内容区间引用：第一次复用原 matte 图层，后续 host 创建同模型图层副本。缺失 matte 时被遮罩内容不会降级为无蒙版显示，而是隐藏。
 
@@ -170,7 +186,7 @@ sequenceDiagram
     View-->>View: Delegate callbacks
 ```
 
-DisplayLink 通过弱代理持有回调，避免 target 循环引用。Timeline 使用 timestamp 而不是 tick 次数计算逻辑帧；`allowsFrameSkipping` 开启时直接追赶目标帧，关闭时每次最多推进一个逻辑帧。
+DisplayLink 通过弱代理持有回调，避免 target 循环引用。`preferredFrameRateRange` 设为“视频 FPS × 倍速”（上限 120），20fps 的动画不会按 60/120Hz 唤醒主线程。Timeline 使用 timestamp 而不是 tick 次数计算逻辑帧；`allowsFrameSkipping` 开启时直接追赶目标帧，关闭时每次最多推进一个逻辑帧。
 
 范围和方向被归一化为闭区间。循环模式为 `.once`、`.count(UInt)`、`.forever`；一次 tick 跨过多个循环边界时 Delegate 会收到实际数量。播放结束后按 `.clear`、`.holdStartFrame` 或 `.holdEndFrame` 更新画面。
 
@@ -193,13 +209,13 @@ Audio Scheduler 为模型中的 audio cue 创建 `AVAudioPlayer`，按 `startFra
 
 ## SwiftUI
 
-`LYSVGAPlayerController` 是 `@MainActor ObservableObject`，持有唯一 `LYSVGAPlayerView` 并转发播放器 API。`LYSVGAView` 只负责把这个实例放入 SwiftUI 层级并同步 `contentMode`、`clipsToBounds`，因此 SwiftUI 视图重算不会创建第二套播放时间线。
+`LYSVGAPlayerController` 是 `@MainActor ObservableObject`，持有唯一 `LYSVGAPlayerView` 并转发播放器 API。`LYSVGAView` 只负责把这个实例放入 SwiftUI 层级并同步 `contentMode`、`clipsToBounds`，因此 SwiftUI 视图重算不会创建第二套播放时间线。`LYSVGAView` 不观察 Controller；`contentMode`/`clipsToBounds` 未变化时不触发重布局；`publishesFrameUpdates = false` 时播放中不逐帧发布帧与进度，避免观察者按动画帧率重算。
 
 适配层使用 iOS 16 可用的 `ObservableObject/@Published`，不依赖 iOS 17 Observation。
 
 ## 导出
 
-`LYSVGAFrameExporter` 初始化时准备并持有同一个 Renderer。单帧导出按请求尺寸、scale 与 contentMode 布局后绘制 `UIImage`，PNG Data 在内存编码，PNG 序列逐帧渲染并并发写入文件。
+`LYSVGAFrameExporter` 初始化时准备并持有同一个 Renderer。单帧导出按请求尺寸、scale 与 contentMode 布局后绘制 `UIImage`，PNG Data 在内存编码，PNG 序列逐帧渲染，并在后台逐帧写入文件。
 
 导出校验帧范围、有限正尺寸、scale、文件 URL、前缀和取消；输出限制为单边 16384 像素、总计 64 MP。
 

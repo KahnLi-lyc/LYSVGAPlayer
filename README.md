@@ -157,6 +157,14 @@ struct AnimationView: View {
 
 `LYSVGAPlayerController` 始终持有同一个 `LYSVGAPlayerView`，通过 iOS 16 可用的 `ObservableObject/@Published` 发布播放状态、帧、进度、循环和错误事件。
 
+每个 `@Published` 变化都会让观察 Controller 的 SwiftUI 视图按动画帧率重新计算 `body`。只展示动画、不需要逐帧进度时，建议关闭逐帧发布：
+
+```swift
+controller.publishesFrameUpdates = false // 播放中不逐帧发布 currentFrame/currentProgress，状态变化和暂停时仍会同步
+```
+
+`LYSVGAView` 本身不观察 Controller，播放 tick 不会触发 `updateUIView`。
+
 Controller 会转发 `repeatMode`、`endBehavior`、`playbackRate`、`allowsFrameSkipping`、`isMuted`、`audioVolume` 与 `displayLinkRunLoopMode`。SwiftUI 层仍使用同一套 UIKit/Core Animation 播放内核。
 
 ## 从 SVGAPlayer-iOS 迁移
@@ -173,6 +181,35 @@ LYSVGAPlayer 面向 Swift 6 项目，不提供 Objective-C 兼容层，也不声
 | `clearsAfterStop` | `endBehavior` 或 `clearsAfterStop` | 推荐强类型结束行为 |
 | `mainRunLoopMode` | `displayLinkRunLoopMode` | 默认 `.common`，运行中可切换 |
 | `referenceLayer` 动态替换 | 无对应接口 | 上游已废弃且参数未参与实际渲染；请使用动态图片、文本、隐藏和 Drawing Handler |
+
+### 与上游行为不同、迁移时需要确认的点
+
+| 项目 | SVGAPlayer-iOS 2.5.8 | LYSVGAPlayer | 迁移建议 |
+| --- | --- | --- | --- |
+| 循环次数默认值 | `loops = 0`，无限循环 | `repeatMode = .once`（`loops == 1`），播放一次 | 需要无限循环时显式设置 `repeatMode = .forever` 或 `loops = 0` |
+| 结束画面默认值 | `clearsAfterStop = YES`，结束后清空 | `endBehavior = .holdEndFrame`，停在最后一帧 | 需要旧行为时设置 `endBehavior = .clear` 或 `clearsAfterStop = true` |
+| `clear()` 与动态内容 | `clear` 只移除图层，保留动态图片、文本、隐藏与绘制回调 | `clear()` 同时清空动态内容并取消远程动态图片 | 先 `clear()` 再设置动态内容；`LYSVGAImageView` 赋值 `imageName` 时也会清空之前的动态内容 |
+| 从视图层级移除 | `willMoveToSuperview(nil)` 时 `stopAnimation` 并清空 | 离开 Window 时暂停，重新加入且无其他中断原因时自动恢复；App 进入 inactive/background 时同样暂停 | 需要释放画面时主动调用 `stop()` 或 `clear()` |
+| 资源损坏或缺失 | 静默跳过坏图、缺失文件与无法创建的音频 | 默认 `.lenient` 同样跳过并通过 `didEncounterWarnings` 上报；`.strict` 时整体失败 | 见下方“容错与 Warning” |
+| Sprite layout 原点 | `T·(layout.origin + p)` | 与上游一致 | 无需处理 |
+| 帧率 | `frameInterval = 60 / FPS` 按 tick 计数 | 按时间戳换算帧号，倍速与跳帧追赶准确 | 非 60 整除帧率（如 24fps）的动画播放速度会比上游更准确 |
+
+### 容错与 Warning
+
+与上游一致，默认 `faultTolerance = .lenient`：解码时跳过 ZIP/目录中缺失的资源、裁剪帧数超过影片帧数的 Sprite、忽略非法音频 cue；准备时跳过无法解码的图片和无法创建的音频，动画其余部分照常播放。被跳过的内容会以 `LYSVGAWarning` 报告：
+
+```swift
+final class Observer: LYSVGAPlayerViewDelegate {
+    func playerView(_ playerView: LYSVGAPlayerView, didEncounterWarnings warnings: [LYSVGAWarning]) {
+        // 例如上报埋点：.imageDecodingFailed(key:), .audioUnavailable(audioKey:reason:) ...
+    }
+}
+
+playerView.faultTolerance = .strict            // 图片或音频准备失败时整体失败
+let strictLoader = LYSVGAAssetLoader(faultTolerance: .strict) // 缺失资源或模型不一致时拒绝解码
+```
+
+`LYSVGAVideo.warnings`、`LYSVGAPlayerView.warnings`、`LYSVGAPlayerController.lastWarnings` 与 `LYSVGAFrameExporter.warnings` 都可读取本次跳过的内容。
 
 迁移后的解析、安装和播放可以合并为一次调用：
 
