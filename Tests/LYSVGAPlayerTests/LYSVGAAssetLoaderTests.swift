@@ -226,7 +226,8 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
             let directory = TestSupport.temporaryDirectory()
             defer { try? FileManager.default.removeItem(at: directory) }
             let configuration = cacheConfiguration(directory: directory)
-            let source = LYSVGASource.data(Data([0x01]), cacheKey: "cached-\(cancellation)")
+            // Only remote sources use the disk cache; the injected reader ignores the URL.
+            let source = LYSVGASource.remote(URL(string: "https://example.com/cached-\(cancellation).svga")!)
             let cachedData = Data([0x01])
             let fallbackData = Data([0x02])
             let expectedVideo = try TestSupport.video(version: "cached")
@@ -269,6 +270,88 @@ final class LYSVGAAssetLoaderTests: XCTestCase {
             XCTAssertEqual(verifiedVideo, expectedVideo)
             XCTAssertEqual(verificationProbe.readCount, 0)
         }
+    }
+
+    func testDiskHitIsDecodedOnceForConcurrentWaiters() async throws {
+        let directory = TestSupport.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let configuration = cacheConfiguration(directory: directory)
+        let source = LYSVGASource.remote(URL(string: "https://example.com/disk-coalescing.svga")!)
+        let expectedVideo = try TestSupport.video(version: "disk")
+        let seeder = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: configuration,
+            reader: { _, _ in Data([0x01]) },
+            decoder: { _ in expectedVideo }
+        )
+        _ = try await seeder.load(source, cachePolicy: .automatic)
+
+        let counter = CallCounter()
+        let readProbe = CallCounter()
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: configuration,
+            reader: { _, _ in
+                readProbe.increment()
+                return Data([0x01])
+            },
+            decoder: { _ in
+                counter.increment()
+                Thread.sleep(forTimeInterval: 0.05)
+                return expectedVideo
+            }
+        )
+        async let first = loader.load(source, cachePolicy: .automatic)
+        async let second = loader.load(source, cachePolicy: .automatic)
+        async let third = loader.load(source, cachePolicy: .automatic)
+        let videos = try await [first, second, third]
+
+        XCTAssertEqual(videos, [expectedVideo, expectedVideo, expectedVideo])
+        XCTAssertEqual(counter.value, 1)
+        XCTAssertEqual(readProbe.value, 0)
+    }
+
+    func testDiskCacheWriteFailureDoesNotFailSuccessfulLoad() async throws {
+        let blocker = URL(fileURLWithPath: TestSupport.temporaryDirectory().path)
+        // A regular file where the cache directory should be makes every disk write fail.
+        try Data("not-a-directory".utf8).write(to: blocker)
+        defer { try? FileManager.default.removeItem(at: blocker) }
+        let expectedVideo = try TestSupport.video(version: "write-failure")
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: cacheConfiguration(directory: blocker),
+            reader: { _, _ in Data([0x01]) },
+            decoder: { _ in expectedVideo }
+        )
+
+        let video = try await loader.load(
+            .remote(URL(string: "https://example.com/write-failure.svga")!),
+            cachePolicy: .automatic
+        )
+
+        XCTAssertEqual(video, expectedVideo)
+    }
+
+    func testLocalSourcesAreNotCopiedIntoDiskCache() async throws {
+        let directory = TestSupport.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let expectedVideo = try TestSupport.video(version: "local")
+        let readProbe = CallCounter()
+        let loader = LYSVGAAssetLoader(
+            session: .shared,
+            cacheConfiguration: cacheConfiguration(directory: directory),
+            reader: { _, _ in
+                readProbe.increment()
+                return Data([0x01])
+            },
+            decoder: { _ in expectedVideo }
+        )
+
+        _ = try await loader.load(.data(Data([0x01]), cacheKey: "local"), cachePolicy: .automatic)
+        _ = try await loader.load(.data(Data([0x01]), cacheKey: "local"), cachePolicy: .automatic)
+
+        XCTAssertEqual(readProbe.value, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
     func testCachePolicySemanticsAndFailuresAreNotCached() async throws {
@@ -344,6 +427,19 @@ private enum CacheDecodeCancellation: String, CaseIterable, Sendable {
         case .url: URLError(.cancelled)
         case .library: LYSVGAError.cancelled
         }
+    }
+}
+
+private final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.withLock { count }
+    }
+
+    func increment() {
+        lock.withLock { count += 1 }
     }
 }
 
