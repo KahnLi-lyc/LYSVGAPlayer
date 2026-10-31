@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 import XCTest
@@ -65,6 +66,31 @@ final class LYSVGASwiftUITests: XCTestCase {
         XCTAssertEqual(spy.errors, [error])
     }
 
+    func testDisablingFrameUpdatesStopsPerFramePublishingDuringPlayback() async throws {
+        let view = LYSVGAPlayerView(clockFactory: { _ in SwiftUITestClock() })
+        let controller = LYSVGAPlayerController(playerView: view)
+        controller.publishesFrameUpdates = false
+        try await controller.setVideo(try video())
+        try controller.play()
+
+        var changeCount = 0
+        let cancellable = controller.objectWillChange.sink { changeCount += 1 }
+        defer { cancellable.cancel() }
+
+        view.tickForTesting(at: 0)
+        view.tickForTesting(at: 0.05)
+
+        XCTAssertEqual(view.currentFrame, 1)
+        XCTAssertEqual(controller.currentFrame, 0)
+        XCTAssertEqual(changeCount, 0)
+
+        controller.pause()
+        XCTAssertGreaterThan(changeCount, 0)
+        XCTAssertEqual(controller.playbackState, .paused)
+        XCTAssertEqual(controller.currentFrame, 1)
+        XCTAssertEqual(controller.currentProgress, 0.5)
+    }
+
     func testRepresentableEmbedsControllersUniquePlayerAndAppliesUIKitLayoutOptions() async {
         let controller = LYSVGAPlayerController()
         let hostingController = UIHostingController(rootView: LYSVGAView(
@@ -109,6 +135,16 @@ final class LYSVGASwiftUITests: XCTestCase {
             audios: []
         )
     }
+}
+
+@MainActor
+private final class SwiftUITestClock: LYSVGADisplayClock {
+    var timestamp: TimeInterval = 0
+    var runLoopMode: RunLoop.Mode = .common
+
+    func start() {}
+    func pause() {}
+    func invalidate() {}
 }
 
 @MainActor

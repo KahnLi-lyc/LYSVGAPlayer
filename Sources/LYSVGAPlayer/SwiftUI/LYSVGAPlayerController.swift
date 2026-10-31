@@ -14,6 +14,14 @@ public final class LYSVGAPlayerController: NSObject, ObservableObject {
     public let playerView: LYSVGAPlayerView
     public weak var delegate: (any LYSVGAPlayerViewDelegate)?
 
+    /// Whether `currentFrame` and `currentProgress` are published on every displayed frame.
+    ///
+    /// Each published change re-evaluates every SwiftUI view observing this controller, at the
+    /// animation's frame rate. Set this to `false` for display-only animations: frame and progress
+    /// are then refreshed only while not playing (state changes, seeks while paused, completion).
+    /// Delegates still receive every frame.
+    public var publishesFrameUpdates = true
+
     public var video: LYSVGAVideo? { playerView.video }
 
     public var repeatMode: LYSVGARepeatMode {
@@ -123,8 +131,8 @@ extension LYSVGAPlayerController: LYSVGAPlayerViewDelegate {
         didChangePlaybackState state: LYSVGAPlaybackState
     ) {
         playbackState = state
-        currentFrame = playerView.currentFrame
-        currentProgress = playerView.currentProgress
+        if currentFrame != playerView.currentFrame { currentFrame = playerView.currentFrame }
+        if currentProgress != playerView.currentProgress { currentProgress = playerView.currentProgress }
         if state == .loading {
             lastError = nil
             lastWarnings = []
@@ -139,8 +147,10 @@ extension LYSVGAPlayerController: LYSVGAPlayerViewDelegate {
         didDisplayFrame frame: Int,
         progress: Double
     ) {
-        currentFrame = frame
-        currentProgress = progress
+        if publishesFrameUpdates || playerView.playbackState != .playing {
+            if currentFrame != frame { currentFrame = frame }
+            if currentProgress != progress { currentProgress = progress }
+        }
         delegate?.playerView(playerView, didDisplayFrame: frame, progress: progress)
     }
 

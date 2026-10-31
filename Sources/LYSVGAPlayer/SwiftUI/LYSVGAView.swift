@@ -3,7 +3,9 @@ import UIKit
 
 @MainActor
 public struct LYSVGAView: UIViewRepresentable {
-    @ObservedObject private var controller: LYSVGAPlayerController
+    // Not observed: the UIKit player renders itself, so frame updates published by the
+    // controller must not re-evaluate this representable on every display tick.
+    private let controller: LYSVGAPlayerController
     private let contentMode: UIView.ContentMode
     private let clipsToBounds: Bool
 
@@ -12,7 +14,7 @@ public struct LYSVGAView: UIViewRepresentable {
         contentMode: UIView.ContentMode = .scaleAspectFit,
         clipsToBounds: Bool = false
     ) {
-        _controller = ObservedObject(wrappedValue: controller)
+        self.controller = controller
         self.contentMode = contentMode
         self.clipsToBounds = clipsToBounds
     }

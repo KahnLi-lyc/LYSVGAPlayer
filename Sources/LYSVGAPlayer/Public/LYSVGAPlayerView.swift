@@ -169,11 +169,17 @@ public class LYSVGAPlayerView: UIView {
     public var faultTolerance: LYSVGAFaultTolerance = .lenient
 
     public override var contentMode: UIView.ContentMode {
-        didSet { setNeedsLayout() }
+        didSet {
+            guard contentMode != oldValue else { return }
+            setNeedsLayout()
+        }
     }
 
     public override var clipsToBounds: Bool {
-        didSet { setNeedsLayout() }
+        didSet {
+            guard clipsToBounds != oldValue else { return }
+            setNeedsLayout()
+        }
     }
 
     public var repeatMode: LYSVGARepeatMode = .once
@@ -223,6 +229,7 @@ public class LYSVGAPlayerView: UIView {
                 playbackRate = clamped
             }
             audioScheduler?.playbackRate = clamped
+            updatePreferredFrameRate()
             guard var timeline else { return }
             let timestamp = playbackState == .playing ? clockTimestamp : .nan
             let output = timeline.updatePlaybackRate(clamped, at: timestamp)
@@ -695,6 +702,7 @@ private extension LYSVGAPlayerView {
         audioScheduler = candidate.audioScheduler
         self.video = video
         warnings = []
+        updatePreferredFrameRate()
         timeline = nil
         playbackRange = nil
         isReversePlayback = false
@@ -823,8 +831,18 @@ private extension LYSVGAPlayerView {
             self?.tick(at: timestamp)
         }
         clock.runLoopMode = displayLinkRunLoopMode
+        clock.preferredFramesPerSecond = preferredFramesPerSecond
         self.clock = clock
         return clock
+    }
+
+    var preferredFramesPerSecond: Double {
+        guard let video else { return 0 }
+        return Double(video.fps) * playbackRate
+    }
+
+    func updatePreferredFrameRate() {
+        clock?.preferredFramesPerSecond = preferredFramesPerSecond
     }
 
     func tick(at timestamp: TimeInterval) {

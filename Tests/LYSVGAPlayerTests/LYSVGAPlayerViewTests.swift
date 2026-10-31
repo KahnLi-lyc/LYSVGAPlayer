@@ -937,6 +937,40 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertNil(weakView)
     }
 
+    func testDisplayClockFollowsVideoFrameRateAndPlaybackRate() async throws {
+        let clock = PlayerViewTestClock()
+        let view = LYSVGAPlayerView(clockFactory: { _ in clock })
+        try await view.setVideo(try makePlayerVideo(fps: 20, frameCount: 4))
+        try view.play()
+        XCTAssertEqual(clock.preferredFramesPerSecond, 20)
+
+        view.playbackRate = 1.5
+        XCTAssertEqual(clock.preferredFramesPerSecond, 30)
+    }
+
+    func testDisplayLinkFrameRateRangeTracksContentRate() {
+        let range = LYSVGADisplayLinkClock.frameRateRange(for: 20)
+        XCTAssertEqual(range.minimum, 20)
+        XCTAssertEqual(range.maximum, 40)
+        XCTAssertEqual(range.preferred, 20)
+
+        let fast = LYSVGADisplayLinkClock.frameRateRange(for: 90)
+        XCTAssertEqual(fast.minimum, 90)
+        XCTAssertEqual(fast.maximum, 120)
+        XCTAssertEqual(fast.preferred, 90)
+
+        XCTAssertTrue(LYSVGADisplayLinkClock.frameRateRange(for: 0).isEqual(to: .default))
+        XCTAssertTrue(LYSVGADisplayLinkClock.frameRateRange(for: .nan).isEqual(to: .default))
+
+        let clock = LYSVGADisplayLinkClock { _ in }
+        clock.preferredFramesPerSecond = 24
+        clock.start()
+        XCTAssertEqual(clock.preferredFrameRateRangeForTesting?.preferred, 24)
+        clock.preferredFramesPerSecond = 30
+        XCTAssertEqual(clock.preferredFrameRateRangeForTesting?.preferred, 30)
+        clock.invalidate()
+    }
+
     func testDisplayLinkClockPauseReleasesLinkAndStartRecreatesIt() {
         let clock = LYSVGADisplayLinkClock { _ in }
 
@@ -1014,6 +1048,7 @@ private final class PlayerViewDelegateSpy: LYSVGAPlayerViewDelegate {
 private final class PlayerViewTestClock: LYSVGADisplayClock {
     var timestamp: TimeInterval = 0
     var runLoopMode: RunLoop.Mode = .common
+    var preferredFramesPerSecond: Double = 0
     private(set) var isRunning = false
     private(set) var isInvalidated = false
     private(set) var startCount = 0
