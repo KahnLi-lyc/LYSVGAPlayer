@@ -2,7 +2,7 @@
 
 LYSVGAPlayer 是面向 iOS 16 及后续系统的原生 Swift SVGA 播放器。它使用 UIKit、Core Animation 与 AVFoundation 实现播放内核，并提供 iOS 16 可用的 SwiftUI 适配层。
 
-当前版本为 `0.1.1`，已经具备 V1/V2 解析、加载缓存、位图/矢量/matte 渲染、播放控制、内嵌音频、动态内容、SwiftUI 和帧导出能力。公开样例已经通过自动测试与 Demo 模拟器播放；上游性能对照和业务素材验收仍需在统一环境完成，因此本项目暂不宣称已经覆盖所有生产 SVGA 文件或绝对优于其他实现。
+当前版本为 `0.2.0`，已经具备 V1/V2 解析、加载缓存、位图/矢量/matte 渲染、播放控制、内嵌音频、动态内容、SwiftUI 和帧导出能力。公开样例已经通过自动测试与 Demo 模拟器播放；上游性能对照和业务素材验收仍需在统一环境完成，因此本项目暂不宣称已经覆盖所有生产 SVGA 文件或绝对优于其他实现。
 
 ## 环境要求
 
@@ -36,7 +36,7 @@ Package 使用 Swift tools 6.2、Swift 6 语言模式与 Swift 6 默认的完整
 dependencies: [
     .package(
         url: "https://github.com/KahnLi-lyc/LYSVGAPlayer.git",
-        from: "0.1.1"
+        from: "0.2.0"
     ),
 ]
 ```
@@ -52,7 +52,7 @@ dependencies: [
 )
 ```
 
-远端依赖通过已发布的 `0.1.1` tag 接入。本地开发可通过 Xcode 的 Add Local Package 使用仓库根目录。
+远端依赖通过已发布的 `0.2.0` tag 接入。从 0.1.x 升级时注意：0.2.0 起默认 `faultTolerance = .lenient`，损坏或缺失的资源会被跳过并以 warning 上报；需要保留整体失败的旧行为可设为 `.strict`，详见“容错与 Warning”。本地开发可通过 Xcode 的 Add Local Package 使用仓库根目录。
 
 ## UIKit 使用
 
