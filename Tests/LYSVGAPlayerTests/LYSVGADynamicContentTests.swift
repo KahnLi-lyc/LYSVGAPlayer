@@ -88,7 +88,9 @@ final class LYSVGADynamicContentTests: XCTestCase {
         view.seek(toFrame: 1)
 
         XCTAssertTrue(sprite.dynamicTextLayerForTesting === textLayer)
-        XCTAssertEqual(sprite.contentLayer.position, CGPoint(x: 11, y: 13))
+        XCTAssertEqual(sprite.contentLayer.position, .zero)
+        XCTAssertEqual(sprite.contentLayer.affineTransform(), CGAffineTransform(translationX: 11, y: 13))
+        XCTAssertEqual(sprite.contentLayer.frame, CGRect(x: 11, y: 13, width: 80, height: 40))
         XCTAssertEqual(sprite.contentLayer.bounds.size, CGSize(width: 80, height: 40))
         XCTAssertEqual(textLayer.frame.midX, sprite.contentLayer.bounds.midX, accuracy: 0.001)
         XCTAssertEqual(textLayer.frame.midY, sprite.contentLayer.bounds.midY, accuracy: 0.001)

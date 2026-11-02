@@ -135,7 +135,7 @@ public struct LYSVGAVideo: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self = try LYSVGAVideo(
+        try self.init(
             version: container.decode(String.self, forKey: .version),
             canvasSize: container.decode(LYSVGASize.self, forKey: .canvasSize),
             fps: container.decode(Int.self, forKey: .fps),

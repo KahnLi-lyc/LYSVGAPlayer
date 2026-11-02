@@ -959,8 +959,8 @@ final class LYSVGAPlayerViewTests: XCTestCase {
         XCTAssertEqual(fast.maximum, 120)
         XCTAssertEqual(fast.preferred, 90)
 
-        XCTAssertTrue(LYSVGADisplayLinkClock.frameRateRange(for: 0).isEqual(to: .default))
-        XCTAssertTrue(LYSVGADisplayLinkClock.frameRateRange(for: .nan).isEqual(to: .default))
+        XCTAssertEqual(LYSVGADisplayLinkClock.frameRateRange(for: 0), .default)
+        XCTAssertEqual(LYSVGADisplayLinkClock.frameRateRange(for: .nan), .default)
 
         let clock = LYSVGADisplayLinkClock { _ in }
         clock.preferredFramesPerSecond = 24
